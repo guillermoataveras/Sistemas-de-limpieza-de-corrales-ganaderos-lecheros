@@ -116,7 +116,7 @@ class ArduinoLink:
             except: self.connected = False
 
     def _dispatch(self, msg):
-        for handler in self._handlers.get(msg.label, []): handler(msg)l
+        for handler in self._handlers.get(msg.label, []): handler(msg)
         for handler in self._handlers.get("*", []): handler(msg)
 
     def send(self, cmd: str):
