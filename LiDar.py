@@ -5,8 +5,7 @@ import time
 import numpy as np
 import pygame
 import math
-import warnings
-from sklearn.exceptions import UndefinedMetricWarning
+from ArduinoBridge import ArduinoLink
 
 # ==========================================
 # CONFIGURACIÓN
@@ -22,7 +21,7 @@ DIST_LIDAR_FRENTE_MM = 280
 DIST_LIDAR_ATRAS_MM = ROBOT_LARGO_MM - DIST_LIDAR_FRENTE_MM
 MITAD_ANCHO_MM = ROBOT_ANCHO_MM / 2
 
-OFFSET_LIDAR_FÍSICO = 186.0
+OFFSET_LIDAR_FISICO = 186.0
 ANCHO_ROBOT_M = ROBOT_ANCHO_MM / 1000.0
 
 # --- CONTROL ---
@@ -32,50 +31,47 @@ PWM_MAX = 110
 FACTOR_RESPUESTA = 150.0
 
 TRIM_IZQUIERDA = 1.0
-TRIM_DERECHA   = 1.0
+TRIM_DERECHA = 1.0
 
 K_DISTANCIA = 1.0
-K_ANGULO    = 1.5
+K_ANGULO = 1.5
 
 # --- SEGURIDAD DINÁMICA ---
 DISTANCIA_SEGURIDAD_DINAMICA = 900
 ANCHO_MAXIMO_OBJETO_DINAMICO = 1200
 TIEMPO_PACIENCIA_DINAMICO = 5.0
 
+# --- LIMPIEZA ---
 NIVELES_LIMPIEZA = [0.15, 0.40, 1.00]
 
 # --- RASTRO ---
 UMBRAL_DENSIDAD_VISITADO = 40
 TIEMPO_IGNORAR_RASTRO_RECIENTE = 3.0
 
-# GRÁFICOS
-ANCHO_VENTANA = 1100        # más ancho para panel
+# --- GRÁFICOS ---
+ANCHO_VENTANA = 1100
 ALTO_VENTANA = 720
 ESCALA_ZOOM = 0.18
 
-# Panel UI
 PANEL_W = 320
 MAP_W = ANCHO_VENTANA - PANEL_W
 
-warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
+FPS_OBJETIVO = 30
+FPS_DIBUJO = 20
+INTERVALO_DIBUJO = 1.0 / FPS_DIBUJO
+
 
 # ==========================================
-# LiDAR PERSISTENTE / ROBUSTO
+# LIDAR PERSISTENTE / ROBUSTO
 # ==========================================
 class LidarPersistence:
-    """
-    Mantiene un scan persistente en bins de ángulo (por defecto 1°).
-    - TTL: cuánto tiempo un bin se considera válido sin refrescarse.
-    - Outlier rejection: si un nuevo punto se aleja demasiado del valor actual,
-      no lo acepta de inmediato; requiere repetición/confirmación.
-    """
     def __init__(
         self,
         bin_deg=1.0,
-        ttl_s=0.45,                # paredes "persisten" ~0.45s si hay dropout
-        max_jump_mm=250,           # salto permitido para aceptar sin confirmar
-        confirm_needed=2,          # repeticiones para aceptar un salto grande
-        ema_alpha=0.35,            # suavizado
+        ttl_s=0.45,
+        max_jump_mm=250,
+        confirm_needed=2,
+        ema_alpha=0.35,
         min_dist_mm=30,
         max_dist_mm=12000,
     ):
@@ -90,19 +86,15 @@ class LidarPersistence:
         self.min_dist_mm = float(min_dist_mm)
         self.max_dist_mm = float(max_dist_mm)
 
-        # estado por bin
         self.dist = np.full(self.nbins, np.nan, dtype=np.float32)
-        self.ts   = np.full(self.nbins, 0.0, dtype=np.float64)
+        self.ts = np.full(self.nbins, 0.0, dtype=np.float64)
 
-        # para confirmar outliers
         self.pending_dist = np.full(self.nbins, np.nan, dtype=np.float32)
-        self.pending_cnt  = np.zeros(self.nbins, dtype=np.int16)
-        self.pending_ts   = np.full(self.nbins, 0.0, dtype=np.float64)
+        self.pending_cnt = np.zeros(self.nbins, dtype=np.int16)
+        self.pending_ts = np.full(self.nbins, 0.0, dtype=np.float64)
 
     def _bin_index(self, ang_deg):
-        # ang_deg en [0,360)
-        i = int(ang_deg / self.bin_deg) % self.nbins
-        return i
+        return int(ang_deg / self.bin_deg) % self.nbins
 
     def update(self, angles_deg, distances_mm, now=None):
         if now is None:
@@ -110,18 +102,16 @@ class LidarPersistence:
         if len(distances_mm) == 0:
             return
 
-        # Filtrado básico
         d = distances_mm.astype(np.float32)
         a = angles_deg.astype(np.float32)
 
         mask = (d >= self.min_dist_mm) & (d <= self.max_dist_mm)
         if not np.any(mask):
             return
+
         d = d[mask]
         a = a[mask]
 
-        # Para reducir ruido, si llegan muchos puntos, muestreamos ligeramente
-        # (pero ojo: ya vienes “cada paquete” con 12 puntos)
         for ang, dist_new in zip(a, d):
             ang = float(ang) % 360.0
             idx = self._bin_index(ang)
@@ -131,7 +121,6 @@ class LidarPersistence:
             is_old_valid = (not np.isnan(dist_old)) and ((now - ts_old) <= self.ttl_s)
 
             if not is_old_valid:
-                # Si no hay valor vigente, aceptar directo (y limpiar pending)
                 self.dist[idx] = dist_new
                 self.ts[idx] = now
                 self.pending_cnt[idx] = 0
@@ -142,20 +131,16 @@ class LidarPersistence:
             jump = abs(dist_new - dist_old)
 
             if jump <= self.max_jump_mm:
-                # Consistente: actualizar con EMA
                 self.dist[idx] = (1.0 - self.ema_alpha) * dist_old + self.ema_alpha * dist_new
                 self.ts[idx] = now
-                # cancelar pending
                 self.pending_cnt[idx] = 0
                 self.pending_dist[idx] = np.nan
                 self.pending_ts[idx] = 0.0
             else:
-                # Salto grande: requiere confirmación (repetición)
                 pd = self.pending_dist[idx]
                 pc = self.pending_cnt[idx]
                 pts = self.pending_ts[idx]
 
-                # si pending está viejo, reiniciar
                 if pc > 0 and (now - pts) > 0.20:
                     pc = 0
                     pd = np.nan
@@ -165,12 +150,10 @@ class LidarPersistence:
                     self.pending_cnt[idx] = 1
                     self.pending_ts[idx] = now
                 else:
-                    # confirmamos si el nuevo punto cae cerca del pending
                     if not np.isnan(pd) and abs(dist_new - pd) <= self.max_jump_mm:
                         pc += 1
                         self.pending_cnt[idx] = pc
                         self.pending_ts[idx] = now
-                        # cuando se confirma lo suficiente, aceptar (EMA hacia new)
                         if pc >= self.confirm_needed:
                             self.dist[idx] = (1.0 - self.ema_alpha) * dist_old + self.ema_alpha * dist_new
                             self.ts[idx] = now
@@ -178,34 +161,32 @@ class LidarPersistence:
                             self.pending_dist[idx] = np.nan
                             self.pending_ts[idx] = 0.0
                     else:
-                        # no coincide con pending, reiniciar pending
                         self.pending_dist[idx] = dist_new
                         self.pending_cnt[idx] = 1
                         self.pending_ts[idx] = now
 
     def get_scan(self, now=None):
-        """
-        Devuelve arrays (angles_deg, distances_mm) sólo de bins vigentes.
-        """
         if now is None:
             now = time.time()
         age = now - self.ts
         mask = (age <= self.ttl_s) & (~np.isnan(self.dist))
         if not np.any(mask):
-            return np.array([]), np.array([])
+            return np.empty(0, dtype=np.float32), np.empty(0, dtype=np.float32)
+
         idxs = np.where(mask)[0]
         angles = (idxs.astype(np.float32) * self.bin_deg) % 360.0
         dists = self.dist[idxs].astype(np.float32)
         return angles, dists
 
+
 # ==========================================
-# GESTOR DE RASTRO AVANZADO (AREA + TIEMPO)
+# GESTOR DE RASTRO OPTIMIZADO
 # ==========================================
 class TrailManager:
     def __init__(self):
-        self.points = np.empty((0, 3))
-        self.max_points = 15000
-        self.last_add_time = 0
+        self.points = np.empty((0, 3), dtype=np.float32)
+        self.max_points = 9000
+        self.last_add_time = 0.0
 
     def update(self, speed_mm_s, ang_vel_rad_s, dt):
         if self.points.shape[0] == 0:
@@ -220,31 +201,31 @@ class TrailManager:
         y = self.points[:, 1]
 
         x_new = x * cos_r - y * sin_r
-        y_new = x * sin_r + y * cos_r
-        y_new += desplazamiento
+        y_new = x * sin_r + y * cos_r + desplazamiento
 
         self.points[:, 0] = x_new
         self.points[:, 1] = y_new
 
-        dist_sq = self.points[:, 0]**2 + self.points[:, 1]**2
-        mask = dist_sq < 225000000
-        self.points = self.points[mask]
+        dist_sq = self.points[:, 0] ** 2 + self.points[:, 1] ** 2
+        self.points = self.points[dist_sq < 225000000]
 
     def add_breadcrumb(self):
         now = time.time()
-        if now - self.last_add_time > 0.1:
-            self.last_add_time = now
+        if now - self.last_add_time < 0.14:
+            return
 
-            num_samples = 15
-            xs = np.random.uniform(-MITAD_ANCHO_MM, MITAD_ANCHO_MM, num_samples)
-            ys = np.random.uniform(-DIST_LIDAR_FRENTE_MM, 0, num_samples)
-            ts = np.full(num_samples, now)
+        self.last_add_time = now
 
-            new_batch = np.column_stack((xs, ys, ts))
-            self.points = np.vstack((self.points, new_batch))
+        num_samples = 8
+        xs = np.random.uniform(-MITAD_ANCHO_MM, MITAD_ANCHO_MM, num_samples).astype(np.float32)
+        ys = np.random.uniform(-DIST_LIDAR_FRENTE_MM, 0, num_samples).astype(np.float32)
+        ts = np.full(num_samples, now, dtype=np.float32)
 
-            if self.points.shape[0] > self.max_points:
-                self.points = self.points[-self.max_points:]
+        new_batch = np.column_stack((xs, ys, ts))
+        self.points = np.vstack((self.points, new_batch))
+
+        if self.points.shape[0] > self.max_points:
+            self.points = self.points[-self.max_points:]
 
     def draw(self, screen, cx, cy, visual_rotation_rad):
         if self.points.shape[0] == 0:
@@ -253,19 +234,18 @@ class TrailManager:
         cos_v = math.cos(-visual_rotation_rad)
         sin_v = math.sin(-visual_rotation_rad)
 
-        surf = pygame.Surface((MAP_W, ALTO_VENTANA), pygame.SRCALPHA)
-
-        draw_pts = self.points[::3]
+        draw_pts = self.points[::4]
         rx = draw_pts[:, 0] * cos_v - draw_pts[:, 1] * sin_v
         ry = draw_pts[:, 0] * sin_v + draw_pts[:, 1] * cos_v
 
-        screen_xs = cx + (rx * ESCALA_ZOOM)
-        screen_ys = cy + (ry * ESCALA_ZOOM)
+        screen_xs = (cx + (rx * ESCALA_ZOOM)).astype(np.int32)
+        screen_ys = (cy + (ry * ESCALA_ZOOM)).astype(np.int32)
 
-        for i in range(len(screen_xs)):
-            sx, sy = int(screen_xs[i]), int(screen_ys[i])
+        surf = pygame.Surface((MAP_W, ALTO_VENTANA), pygame.SRCALPHA)
+
+        for sx, sy in zip(screen_xs, screen_ys):
             if 0 <= sx < MAP_W and 0 <= sy < ALTO_VENTANA:
-                pygame.draw.circle(surf, (255, 255, 255, 40), (sx, sy), 3)
+                surf.set_at((sx, sy), (255, 255, 255, 40))
 
         screen.blit(surf, (0, 0))
 
@@ -279,12 +259,12 @@ class TrailManager:
         if old_points.shape[0] == 0:
             return 0
 
-        dist_sq = old_points[:, 0]**2 + old_points[:, 1]**2
-        count = int(np.sum(dist_sq < (300**2)))
-        return count
+        dist_sq = old_points[:, 0] ** 2 + old_points[:, 1] ** 2
+        return int(np.sum(dist_sq < (300 ** 2)))
+
 
 # ==========================================
-# DRIVERS
+# DRIVER LiDAR
 # ==========================================
 class LiDAR_LD20:
     def __init__(self, port, baudrate=230400):
@@ -300,7 +280,8 @@ class LiDAR_LD20:
             self.serial = serial.Serial(self.port, self.baudrate, timeout=1)
             self.running = True
             return True
-        except:
+        except Exception as e:
+            print(f"No se pudo abrir LiDAR: {e}")
             return False
 
     def read_loop(self):
@@ -310,7 +291,7 @@ class LiDAR_LD20:
                 if self.serial.in_waiting:
                     buffer += self.serial.read(self.serial.in_waiting)
                 else:
-                    time.sleep(0.001)
+                    time.sleep(0.002)
                     continue
 
                 if len(buffer) > 4000:
@@ -328,6 +309,7 @@ class LiDAR_LD20:
 
                     packet = buffer[:47]
                     buffer = buffer[47:]
+
                     if packet[1] != 0x2C:
                         continue
 
@@ -339,7 +321,7 @@ class LiDAR_LD20:
 
                     nuevos = []
                     for i in range(12):
-                        dist = struct.unpack('<H', packet[6+(i*3):8+(i*3)])[0]
+                        dist = struct.unpack('<H', packet[6 + (i * 3):8 + (i * 3)])[0]
                         if dist > 0:
                             ang = start_angle + step * i
                             if ang >= 360:
@@ -350,77 +332,142 @@ class LiDAR_LD20:
                         with self.lock:
                             self.buffer_puntos.extend(nuevos)
 
-            except:
+            except Exception:
                 self.running = False
 
     def obtener_datos_nuevos(self):
         with self.lock:
             if not self.buffer_puntos:
-                return np.array([]), np.array([])
+                return np.empty(0, dtype=np.float32), np.empty(0, dtype=np.float32)
             datos = self.buffer_puntos[:]
-            self.buffer_puntos = []
+            self.buffer_puntos.clear()
+
         angulos, distancias = zip(*datos)
         return np.array(angulos, dtype=np.float32), np.array(distancias, dtype=np.float32)
 
     def close(self):
         self.running = False
-        if self.serial:
-            self.serial.close()
+        try:
+            if self.serial:
+                self.serial.close()
+        except Exception:
+            pass
 
-class ArduinoController:
-    def __init__(self, port, baudrate=115200):
+
+# ==========================================
+# ARDUINO BRIDGE CON YAW INCREMENTAL ACUMULADO
+# ==========================================
+class ArduinoBridgeController:
+    """
+    El Arduino NO manda yaw absoluto.
+    Manda incrementos de yaw en grados:
+        DANG:<delta_deg>
+
+    Python acumula ese valor y conserva la orientación aunque el Arduino
+    se reinicie o se reconecte.
+    """
+    def __init__(self, port=None, baudrate=115200):
         self.port = port
         self.baudrate = baudrate
-        self.serial = None
-        self.running = False
-        self.current_yaw = 0.0
+        self.link = None
         self.lock = threading.Lock()
+
+        self.connected = False
+
+        # yaw acumulado global que vive en Python
+        self.accumulated_yaw_deg = 0.0
+
+        # métricas / estado
+        self.last_rx_time = 0.0
+        self.last_conn_state = False
+        self.last_command = "CMD:0,0,0,0"
 
     def connect(self):
         try:
-            self.serial = serial.Serial(self.port, self.baudrate, timeout=0.1)
-            time.sleep(2)
-            self.running = True
-            threading.Thread(target=self._read_loop, daemon=True).start()
-            return True
-        except:
+            self.link = ArduinoLink(port=self.port, baud=self.baudrate)
+
+            @self.link.on_message("DANG")
+            def _on_dang(msg):
+                vals = msg.as_floats()
+                if vals:
+                    self._apply_increment(vals[0])
+
+            @self.link.on_message("GYRO")
+            def _on_gyro(msg):
+                vals = msg.as_floats()
+                if vals:
+                    self._apply_increment(vals[0])
+
+            @self.link.on_message("DGY")
+            def _on_dgy(msg):
+                vals = msg.as_floats()
+                if vals:
+                    self._apply_increment(vals[0])
+
+            @self.link.on_message("*")
+            def _on_any(msg):
+                self.last_rx_time = time.time()
+
+            self.link.start()
+
+            t0 = time.time()
+            while time.time() - t0 < 3.5:
+                if self.link.connected:
+                    self.connected = True
+                    self.last_conn_state = True
+                    return True
+                time.sleep(0.05)
+
+            self.connected = bool(self.link.connected)
+            self.last_conn_state = self.connected
+            return self.connected
+
+        except Exception as e:
+            print(f"Error conectando ArduinoBridge: {e}")
+            self.connected = False
+            self.last_conn_state = False
             return False
 
-    def _read_loop(self):
-        while self.running:
-            try:
-                if self.serial.in_waiting:
-                    line = self.serial.readline().decode('utf-8', errors='ignore').strip()
-                    if line.startswith("ANG:"):
-                        with self.lock:
-                            self.current_yaw = float(line.split(":")[1])
-                else:
-                    time.sleep(0.005)
-            except:
-                pass
+    def _apply_increment(self, delta_deg):
+        with self.lock:
+            self.accumulated_yaw_deg += float(delta_deg)
+            self.last_rx_time = time.time()
 
     def get_yaw(self):
         with self.lock:
-            return self.current_yaw
+            return self.accumulated_yaw_deg
+
+    def is_connected(self):
+        state = bool(self.link and self.link.connected)
+        self.connected = state
+        return state
 
     def send_command(self, izq, der, aux_pwm, comp_state):
-        if not self.serial:
+        if not self.link or not self.link.connected:
             return
+
         try:
             izq = izq * TRIM_IZQUIERDA
             der = der * TRIM_DERECHA
+
             izq = max(min(int(izq), 255), -255)
             der = max(min(int(der), 255), -255)
             aux_pwm = max(min(int(aux_pwm), 255), 0)
             comp = 1 if comp_state else 0
-            self.serial.write(f"<{izq},{der},{aux_pwm},{comp}>".encode())
-        except:
+
+            cmd = f"CMD:{izq},{der},{aux_pwm},{comp}"
+            self.last_command = cmd
+            self.link.send(cmd)
+        except Exception:
             pass
 
     def close(self):
-        self.running = False
-        if self.serial:
-            self.serial.close()
+        try:
+            if self.link and self.link.connected:
+                self.link.send("CMD:0,0,0,0")
+        except Exception:
+            pass
+
 
 # ==========================================
 # LÓGICA DE DETECCIÓN Y CONTROL
@@ -429,39 +476,50 @@ def detectar_intrusos_dinamicos(angulos, distancias, offset_correccion):
     if len(distancias) == 0:
         return False, 0, 0
 
-    ang_corr = np.mod(angulos - OFFSET_LIDAR_FÍSICO - offset_correccion + 180, 360) - 180
+    ang_corr = np.mod(angulos - OFFSET_LIDAR_FISICO - offset_correccion + 180, 360) - 180
     rads = np.radians(ang_corr)
     xs = distancias * np.cos(rads)
     ys = distancias * np.sin(rads)
 
-    puntos_interes = []
-    for i in range(len(distancias)):
-        if distancias[i] < 2000:
-            puntos_interes.append((xs[i], ys[i], distancias[i], ang_corr[i]))
+    mask = distancias < 2000
+    if not np.any(mask):
+        return False, 0, 0
 
-    if not puntos_interes:
+    xs = xs[mask]
+    ys = ys[mask]
+    ds = distancias[mask]
+    aa = ang_corr[mask]
+
+    if len(ds) < 3:
         return False, 0, 0
 
     clusters = []
-    current = [puntos_interes[0]]
-    for i in range(1, len(puntos_interes)):
-        if math.hypot(puntos_interes[i][0]-puntos_interes[i-1][0],
-                      puntos_interes[i][1]-puntos_interes[i-1][1]) < 300:
-            current.append(puntos_interes[i])
+    current_idx = [0]
+
+    for i in range(1, len(ds)):
+        if math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]) < 300:
+            current_idx.append(i)
         else:
-            clusters.append(current)
-            current = [puntos_interes[i]]
-    clusters.append(current)
+            clusters.append(current_idx)
+            current_idx = [i]
+    clusters.append(current_idx)
 
     for cl in clusters:
         if len(cl) < 3:
             continue
-        w = math.hypot(max(p[0] for p in cl)-min(p[0] for p in cl),
-                       max(p[1] for p in cl)-min(p[1] for p in cl))
-        if w < ANCHO_MAXIMO_OBJETO_DINAMICO and min(p[2] for p in cl) < DISTANCIA_SEGURIDAD_DINAMICA:
-            return True, min(p[2] for p in cl), sum(p[3] for p in cl)/len(cl)
+
+        xcl = xs[cl]
+        ycl = ys[cl]
+        dcl = ds[cl]
+        acl = aa[cl]
+
+        w = math.hypot(float(np.max(xcl) - np.min(xcl)), float(np.max(ycl) - np.min(ycl)))
+        min_d = float(np.min(dcl))
+        if w < ANCHO_MAXIMO_OBJETO_DINAMICO and min_d < DISTANCIA_SEGURIDAD_DINAMICA:
+            return True, min_d, float(np.mean(acl))
 
     return False, 0, 0
+
 
 def calcular_margen_real(distancia_lidar, angulo_relativo_deg):
     theta = math.radians(angulo_relativo_deg)
@@ -475,12 +533,13 @@ def calcular_margen_real(distancia_lidar, angulo_relativo_deg):
 
     return float(distancia_lidar) - min(abs(df), abs(db), abs(dl), abs(dr))
 
+
 def analizar_sectores_reales(angulos, distancias, offset_correccion):
     s = {'FRENTE': 9e9, 'ATRAS': 9e9, 'IZQ': 9e9, 'DER': 9e9}
     if len(distancias) == 0:
         return s
 
-    ang_corr = np.mod(angulos - OFFSET_LIDAR_FÍSICO - offset_correccion + 180, 360) - 180
+    ang_corr = np.mod(angulos - OFFSET_LIDAR_FISICO - offset_correccion + 180, 360) - 180
 
     for i in range(len(ang_corr)):
         m = calcular_margen_real(distancias[i], ang_corr[i])
@@ -496,53 +555,64 @@ def analizar_sectores_reales(angulos, distancias, offset_correccion):
 
     return s
 
+
 def obtener_referencia_navegacion(angulos, distancias, offset_correccion):
     if len(distancias) == 0:
         return None, None
 
-    ang_corr = np.mod(angulos - OFFSET_LIDAR_FÍSICO - offset_correccion + 180, 360) - 180
+    ang_corr = np.mod(angulos - OFFSET_LIDAR_FISICO - offset_correccion + 180, 360) - 180
 
     best_m = 9e9
     best_i = -1
-    for i in range(0, len(distancias), 5):
+
+    step = 5 if len(distancias) > 50 else 1
+    for i in range(0, len(distancias), step):
         m = calcular_margen_real(distancias[i], ang_corr[i])
         if m < best_m:
             best_m = m
             best_i = i
 
     if best_i != -1:
-        return best_m/1000.0, np.radians(float(ang_corr[best_i]))
+        return best_m / 1000.0, np.radians(float(ang_corr[best_i]))
+
     return None, None
+
 
 def calcular_control_reactivo(margen_m, ang_rad):
     err = margen_m - TARGET_CLEARANCE_M
     side = "left" if ang_rad > 0 else "right"
-    delta = abs(ang_rad) - (math.pi/2) if side == "left" else (math.pi/2) - abs(ang_rad)
+    delta = abs(ang_rad) - (math.pi / 2) if side == "left" else (math.pi / 2) - abs(ang_rad)
+
     if side == "right":
         err *= -1
-    va = float(np.clip((K_DISTANCIA*err) + (K_ANGULO*delta), -1.2, 1.2))
-    vl = 1.0 * max(min(1/abs(va+0.01), 1.0), 0.15)
+
+    va = float(np.clip((K_DISTANCIA * err) + (K_ANGULO * delta), -1.2, 1.2))
+    vl = 1.0 * max(min(1 / abs(va + 0.01), 1.0), 0.15)
     return vl, va
+
 
 def cinematica_diferencial(vl, va):
     def apply(v):
-        return (v*FACTOR_RESPUESTA) + (np.sign(v)*PWM_MIN) if abs(v) > 0.05 else 0
-    izq = np.clip(apply(vl - (va*ANCHO_ROBOT_M/2)), -PWM_MAX, PWM_MAX)
-    der = np.clip(apply(vl + (va*ANCHO_ROBOT_M/2)), -PWM_MAX, PWM_MAX)
+        return (v * FACTOR_RESPUESTA) + (np.sign(v) * PWM_MIN) if abs(v) > 0.05 else 0
+
+    izq = np.clip(apply(vl - (va * ANCHO_ROBOT_M / 2)), -PWM_MAX, PWM_MAX)
+    der = np.clip(apply(vl + (va * ANCHO_ROBOT_M / 2)), -PWM_MAX, PWM_MAX)
     return float(izq), float(der)
+
 
 def obtener_esquinas_robot(cx, cy, ang):
     f = DIST_LIDAR_FRENTE_MM * ESCALA_ZOOM
     b = DIST_LIDAR_ATRAS_MM * ESCALA_ZOOM
-    w = (ROBOT_ANCHO_MM/2) * ESCALA_ZOOM
+    w = (ROBOT_ANCHO_MM / 2) * ESCALA_ZOOM
     pts = [(-w, -f), (w, -f), (w, b), (-w, b)]
     rad = math.radians(-ang)
     c = math.cos(rad)
     s = math.sin(rad)
-    return [(cx + x*c - y*s, cy + x*s + y*c) for x, y in pts]
+    return [(cx + x * c - y * s, cy + x * s + y * c) for x, y in pts]
+
 
 # ==========================================
-# UI helpers
+# UI
 # ==========================================
 def draw_panel(screen, font, small, state):
     x0 = MAP_W
@@ -556,52 +626,59 @@ def draw_panel(screen, font, small, state):
         screen.blit(small.render(s, True, color), (x0 + 16, y))
 
     txt(14, "ROBOT CLEANER PRO", (255, 210, 120))
-    txts(44, f"LiDAR: {PUERTO_LIDAR}   Arduino: {PUERTO_ARDUINO}")
+    txts(44, f"LiDAR: {state['lidar_port']}   Arduino: {state['arduino_port']}")
     pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 70), (x0 + PANEL_W - 16, 70), 1)
 
-    txt(86, f"ESTADO: {state['st']}", (120, 255, 140))
-    txts(116, f"Yaw: {state['yaw']:.1f}°   Off: {state['rot_off']:.1f}°   Fix90: {state['fix_90']}°")
-    txts(140, f"PWM L/R: {int(state['pl'])} / {int(state['pr'])}")
-    txts(164, f"FPS: {state['fps']:.1f}")
+    st_color = (120, 255, 140) if state["arduino_ok"] else (255, 150, 100)
+    txt(86, f"ESTADO: {state['st']}", st_color)
+    txts(116, f"Yaw acum: {state['yaw']:.2f}°")
+    txts(140, f"Off: {state['rot_off']:.1f}°   Fix90: {state['fix_90']}°")
+    txts(164, f"PWM L/R: {int(state['pl'])} / {int(state['pr'])}")
+    txts(188, f"FPS: {state['fps']:.1f}")
 
-    pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 190), (x0 + PANEL_W - 16, 190), 1)
+    pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 214), (x0 + PANEL_W - 16, 214), 1)
 
-    # Limpieza
+    txt(230, "LIMPIEZA", (220, 230, 245))
     ptxt = state['pump_txt']
     col = (0, 200, 255) if "ON" in ptxt else (190, 190, 210)
-    txt(206, "LIMPIEZA", (220, 230, 245))
-    txts(234, ptxt, col)
-    txts(258, f"Compresor: {'ON' if state['comp_on'] else 'OFF'}")
-    txts(282, f"Potencia: {int(state['power']*100)}%")
+    txts(258, ptxt, col)
+    txts(282, f"Compresor: {'ON' if state['comp_on'] else 'OFF'}")
+    txts(306, f"Potencia: {int(state['power'] * 100)}%")
 
-    pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 310), (x0 + PANEL_W - 16, 310), 1)
+    pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 334), (x0 + PANEL_W - 16, 334), 1)
 
-    # Sectores
-    txt(326, "SECTORES (margen mm)", (220, 230, 245))
+    txt(350, "SECTORES (margen mm)", (220, 230, 245))
     sec = state['sec']
-    txts(354, f"Frente: {int(sec['FRENTE']) if sec['FRENTE'] < 9e8 else '-'}")
-    txts(378, f"Atras : {int(sec['ATRAS'])  if sec['ATRAS']  < 9e8 else '-'}")
-    txts(402, f"Izq   : {int(sec['IZQ'])   if sec['IZQ']   < 9e8 else '-'}")
-    txts(426, f"Der   : {int(sec['DER'])   if sec['DER']   < 9e8 else '-'}")
+    txts(378, f"Frente: {int(sec['FRENTE']) if sec['FRENTE'] < 9e8 else '-'}")
+    txts(402, f"Atras : {int(sec['ATRAS']) if sec['ATRAS'] < 9e8 else '-'}")
+    txts(426, f"Izq   : {int(sec['IZQ']) if sec['IZQ'] < 9e8 else '-'}")
+    txts(450, f"Der   : {int(sec['DER']) if sec['DER'] < 9e8 else '-'}")
 
-    pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 454), (x0 + PANEL_W - 16, 454), 1)
+    pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 478), (x0 + PANEL_W - 16, 478), 1)
 
-    # Tips
-    txt(470, "TECLAS", (220, 230, 245))
+    txt(494, "COMUNICACION", (220, 230, 245))
+    txts(522, f"Arduino: {'CONECTADO' if state['arduino_ok'] else 'DESCONECTADO'}")
+    txts(546, f"Ult RX: {state['rx_age_txt']}")
+    txts(570, f"Ult CMD: {state['last_cmd']}")
+
+    pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 598), (x0 + PANEL_W - 16, 598), 1)
+
+    txt(614, "TECLAS", (220, 230, 245))
     tips = [
         "SPACE: AUTO/MANUAL",
         "WASD: Manual",
-        "M: Spiral (Ready/Run)",
+        "M: Spiral",
         "R: Toggle limpieza",
         "O: Toggle compresor",
         "V: Nivel potencia",
         "Q/E: Rot offset",
-        "T: Fix 90° (0/90/180/270)"
+        "T: Fix 90°",
     ]
-    y = 498
+    y = 642
     for t in tips:
         screen.blit(small.render(t, True, (170, 180, 200)), (x0 + 16, y))
-        y += 20
+        y += 18
+
 
 # ==========================================
 # MAIN
@@ -609,101 +686,82 @@ def draw_panel(screen, font, small, state):
 def main():
     pygame.init()
     screen = pygame.display.set_mode((ANCHO_VENTANA, ALTO_VENTANA))
-    pygame.display.set_caption("ROBOT CLEANER PRO (Persistente)")
+    pygame.display.set_caption("ROBOT CLEANER PRO (Bridge + Yaw incremental)")
     clock = pygame.time.Clock()
+
     font = pygame.font.SysFont("Arial", 18, bold=True)
     small = pygame.font.SysFont("Consolas", 14, bold=False)
 
     lidar = LiDAR_LD20(PUERTO_LIDAR)
-    arduino = ArduinoController(PUERTO_ARDUINO)
+    arduino = ArduinoBridgeController(PUERTO_ARDUINO, BAUD_ARDUINO)
 
     if not lidar.connect():
         print("No se pudo conectar al LiDAR.")
+        pygame.quit()
         return
+
     if not arduino.connect():
-        print("Arduino OFF")
+        print("ArduinoBridge no conectado al inicio. El programa seguirá intentando vía el bridge.")
 
     threading.Thread(target=lidar.read_loop, daemon=True).start()
 
     trail = TrailManager()
 
-    # Persistencia LiDAR
     lidar_mem = LidarPersistence(
         bin_deg=1.0,
         ttl_s=0.45,
         max_jump_mm=250,
         confirm_needed=2,
-        ema_alpha=0.35
+        ema_alpha=0.35,
     )
 
     st = 'MANUAL'
-    pl = 0
-    pr = 0
+    pl, pr = 0.0, 0.0
     cx = 170
     cy = ALTO_VENTANA - 170
-    rot_off = 0
+    rot_off = 0.0
     fix_90 = 0
 
-    yaw_ini = None
     clean_sys = False
     comp_on = False
     pwr_idx = 0
 
-    t_maniobra = 0
-    yaw_spin = 0
-    t_spiral = 0
-    last_yaw = 0
-    t_patience = 0
+    t_maniobra = 0.0
+    yaw_spin = 0.0
+    t_spiral = 0.0
+    last_yaw = 0.0
+    t_patience = 0.0
     evade_dir = 0
+
+    last_render_time = 0.0
+    cached_keys = None
+
+    background = pygame.Surface((MAP_W, ALTO_VENTANA))
+    background.fill((10, 10, 20))
+    for gx in range(0, MAP_W, 60):
+        pygame.draw.line(background, (18, 18, 28), (gx, 0), (gx, ALTO_VENTANA), 1)
+    for gy in range(0, ALTO_VENTANA, 60):
+        pygame.draw.line(background, (18, 18, 28), (0, gy), (MAP_W, gy), 1)
 
     try:
         while True:
-            dt = clock.get_time() / 1000.0
+            dt = clock.tick(FPS_OBJETIVO) / 1000.0
             if dt <= 1e-6:
                 dt = 1e-3
 
             now = time.time()
 
-            ang_new, dist_new = lidar.obtener_datos_nuevos()
-            curr_yaw = arduino.get_yaw()
-            if yaw_ini is None:
-                yaw_ini = curr_yaw
-                last_yaw = curr_yaw
-
-            # Alimentar persistencia
-            if len(dist_new) > 0:
-                lidar_mem.update(ang_new, dist_new, now=now)
-
-            # Usar scan persistente para TODO
-            ang, dist = lidar_mem.get_scan(now=now)
-
-            # Odometría y Rastro
-            speed = ((pl + pr) / 200.0) * 300.0
-            dy = curr_yaw - last_yaw
-            last_yaw = curr_yaw
-            if dy > 180:
-                dy -= 360
-            elif dy < -180:
-                dy += 360
-
-            trail.update(speed, math.radians(dy) / dt, dt)
-            if clean_sys and speed > 10:
-                trail.add_breadcrumb()
-
-            keys = pygame.key.get_pressed()
-            if keys[pygame.K_q]:
-                rot_off += 1
-            if keys[pygame.K_e]:
-                rot_off -= 1
-            if keys[pygame.K_w] or keys[pygame.K_s] or keys[pygame.K_a] or keys[pygame.K_d]:
-                st = 'MANUAL'
-
+            # ---------------------------
+            # EVENTOS
+            # ---------------------------
             for e in pygame.event.get():
                 if e.type == pygame.QUIT:
                     raise KeyboardInterrupt
+
                 if e.type == pygame.KEYDOWN:
                     if e.key == pygame.K_SPACE:
                         st = 'AUTO_NAV' if st == 'MANUAL' else 'MANUAL'
+
                     elif e.key == pygame.K_m:
                         if 'SPIRAL' not in st:
                             st = 'SPIRAL_READY'
@@ -711,147 +769,150 @@ def main():
                             comp_on = True
                         elif st == 'SPIRAL_READY':
                             st = 'SPIRAL_RUN'
-                            t_spiral = time.time()
+                            t_spiral = now
                         else:
                             st = 'MANUAL'
+
                     elif e.key == pygame.K_r:
                         clean_sys = not clean_sys
+
                     elif e.key == pygame.K_o:
                         comp_on = not comp_on
+
                     elif e.key == pygame.K_v:
                         pwr_idx = (pwr_idx + 1) % len(NIVELES_LIMPIEZA)
+
                     elif e.key == pygame.K_t:
                         fix_90 = (fix_90 + 90) % 360
 
-            # ==========================
-            # Render MAPA
-            # ==========================
-            vis_rot = (curr_yaw - yaw_ini) + rot_off
-            screen.fill((10, 10, 20))
+            cached_keys = pygame.key.get_pressed()
 
-            # Zona mapa (fondo)
-            pygame.draw.rect(screen, (10, 10, 20), (0, 0, MAP_W, ALTO_VENTANA))
-            # grid suave
-            for gx in range(0, MAP_W, 60):
-                pygame.draw.line(screen, (18, 18, 28), (gx, 0), (gx, ALTO_VENTANA), 1)
-            for gy in range(0, ALTO_VENTANA, 60):
-                pygame.draw.line(screen, (18, 18, 28), (0, gy), (MAP_W, gy), 1)
+            if cached_keys[pygame.K_q]:
+                rot_off += 1.0
+            if cached_keys[pygame.K_e]:
+                rot_off -= 1.0
 
-            # rastro
-            trail.draw(screen, cx, cy, math.radians(vis_rot))
+            if cached_keys[pygame.K_w] or cached_keys[pygame.K_s] or cached_keys[pygame.K_a] or cached_keys[pygame.K_d]:
+                st = 'MANUAL'
 
-            # robot
-            esq = obtener_esquinas_robot(cx, cy, vis_rot)
-            pygame.draw.polygon(screen, (255, 200, 0), esq, 2)
-            pygame.draw.line(screen, (255, 80, 80), esq[0], esq[1], 4)  # frente
-            pygame.draw.circle(screen, (0, 200, 255), (cx, cy), 6)
+            # ---------------------------
+            # SENSORES
+            # ---------------------------
+            ang_new, dist_new = lidar.obtener_datos_nuevos()
+            curr_yaw = arduino.get_yaw()
 
-            # LiDAR puntos persistentes (más legibles)
-            if len(ang) > 0:
-                ar = np.radians(ang - OFFSET_LIDAR_FÍSICO - fix_90 - 90 - vis_rot)
-                xd = cx + dist * ESCALA_ZOOM * np.cos(ar)
-                yd = cy + dist * ESCALA_ZOOM * np.sin(ar)
+            if len(dist_new) > 0:
+                lidar_mem.update(ang_new, dist_new, now=now)
 
-                step = max(1, len(ang) // 420)
-                for i in range(0, len(ang), step):
-                    xpi = int(xd[i])
-                    ypi = int(yd[i])
-                    if 0 <= xpi < MAP_W and 0 <= ypi < ALTO_VENTANA:
-                        pygame.draw.circle(screen, (0, 255, 120), (xpi, ypi), 2)
+            ang, dist = lidar_mem.get_scan(now=now)
 
-            # ==========================
-            # LÓGICA CONTROL (con scan persistente)
-            # ==========================
+            # ---------------------------
+            # ODOMETRIA / RASTRO
+            # ---------------------------
+            speed = ((pl + pr) / 200.0) * 300.0
+            dy = curr_yaw - last_yaw
+            last_yaw = curr_yaw
+
+            trail.update(speed, math.radians(dy) / dt, dt)
+            if clean_sys and speed > 10:
+                trail.add_breadcrumb()
+
+            # ---------------------------
+            # ANALISIS
+            # ---------------------------
             sec = analizar_sectores_reales(ang, dist, fix_90)
             intruder, dist_intr, ang_intr = detectar_intrusos_dinamicos(ang, dist, fix_90)
 
             if intruder and st not in ['MANUAL', 'WAIT_DYN', 'EVADE_DYN']:
                 st = 'WAIT_DYN'
-                t_patience = time.time()
+                t_patience = now
 
+            # ---------------------------
+            # CONTROL DE ESTADO
+            # ---------------------------
             if st == 'MANUAL':
-                pl, pr = 0, 0
-                if keys[pygame.K_w]:
-                    pl, pr = 60, 60
-                if keys[pygame.K_s]:
-                    pl, pr = -60, -60
-                if keys[pygame.K_a]:
-                    pl, pr = 60, -60
-                if keys[pygame.K_d]:
-                    pl, pr = -60, 60
+                pl, pr = 0.0, 0.0
+
+                if cached_keys[pygame.K_w]:
+                    pl, pr = 60.0, 60.0
+                if cached_keys[pygame.K_s]:
+                    pl, pr = -60.0, -60.0
+                if cached_keys[pygame.K_a]:
+                    pl, pr = 60.0, -60.0
+                if cached_keys[pygame.K_d]:
+                    pl, pr = -60.0, 60.0
 
             elif st == 'WAIT_DYN':
-                pl, pr = 0, 0
-                pygame.draw.circle(
-                    screen, (255, 60, 60), (cx, cy),
-                    int(DISTANCIA_SEGURIDAD_DINAMICA * ESCALA_ZOOM), 2
-                )
+                pl, pr = 0.0, 0.0
                 if not intruder:
                     st = 'AUTO_NAV'
-                elif time.time() - t_patience > TIEMPO_PACIENCIA_DINAMICO:
+                elif now - t_patience > TIEMPO_PACIENCIA_DINAMICO:
                     st = 'EVADE_DYN'
                     evade_dir = -1 if ang_intr > 0 else 1
 
             elif st == 'EVADE_DYN':
-                pl, pr = 65 * evade_dir, -65 * evade_dir
+                pl, pr = 65.0 * evade_dir, -65.0 * evade_dir
                 if not intruder and sec['FRENTE'] > (ROBOT_LARGO_MM + 200):
                     st = 'AUTO_NAV'
 
             elif st == 'SPIRAL_READY':
-                pl, pr = 0, 0
+                pl, pr = 0.0, 0.0
 
             elif st == 'SPIRAL_RUN':
                 if sec['FRENTE'] < 200:
                     st = 'AUTO_NAV'
                 else:
-                    te = time.time() - t_spiral
+                    te = now - t_spiral
                     va = 300.0 / (te + 2.0)
-                    va = max(10, va)
-                    pl = 70 + va
-                    pr = 70 - (va * 0.5)
+                    va = max(10.0, va)
+                    pl = 70.0 + va
+                    pr = 70.0 - (va * 0.5)
 
             elif st == 'AUTO_NAV':
                 if sec['FRENTE'] < 150 or sec['IZQ'] < 150 or sec['DER'] < 150:
                     st = 'ESC_REV'
-                    t_maniobra = time.time()
+                    t_maniobra = now
                 else:
                     mr, arad = obtener_referencia_navegacion(ang, dist, fix_90)
                     if mr is not None:
                         vl, va = calcular_control_reactivo(mr, arad)
                         pl, pr = cinematica_diferencial(vl, va)
+                    else:
+                        pl, pr = 0.0, 0.0
 
             elif st == 'ESC_REV':
                 if sec['ATRAS'] < 250:
                     st = 'ESC_SPIN'
                     yaw_spin = curr_yaw
-                elif time.time() - t_maniobra < 2.0:
-                    pl, pr = -60, -60
+                elif now - t_maniobra < 2.0:
+                    pl, pr = -60.0, -60.0
                 else:
                     st = 'ESC_SPIN'
                     yaw_spin = curr_yaw
 
             elif st == 'ESC_SPIN':
-                pl, pr = 65, -65
+                pl, pr = 65.0, -65.0
                 if sec['FRENTE'] > (ROBOT_LARGO_MM + 200):
                     st = 'AUTO_NAV'
                 if abs(curr_yaw - yaw_spin) > 400:
                     st = 'ESC_REV'
-                    t_maniobra = time.time()
+                    t_maniobra = now
 
-            # ==========================
-            # Actuadores Smart
-            # ==========================
+            # ---------------------------
+            # ACTUADORES SMART
+            # ---------------------------
             rev = (pl < -10 and pr < -10)
             dens = trail.get_density_under_robot()
             clean_already = dens > UMBRAL_DENSIDAD_VISITADO
 
             pump = clean_sys and (not rev) and (not clean_already) and st not in ['WAIT_DYN', 'EVADE_DYN']
             pwm_pump = int(255 * NIVELES_LIMPIEZA[pwr_idx]) if pump else 0
+
             arduino.send_command(pl, pr, pwm_pump, comp_on)
 
-            # ==========================
-            # UI panel
-            # ==========================
+            # ---------------------------
+            # TEXTO ESTADO BOMBA
+            # ---------------------------
             if not clean_sys:
                 ptxt = "OFF"
             else:
@@ -862,45 +923,91 @@ def main():
                 elif st in ['WAIT_DYN', 'EVADE_DYN']:
                     ptxt = "PAUSA (Intruso)"
                 else:
-                    ptxt = f"ON ({int(NIVELES_LIMPIEZA[pwr_idx]*100)}%)"
+                    ptxt = f"ON ({int(NIVELES_LIMPIEZA[pwr_idx] * 100)}%)"
 
-            fps = clock.get_fps()
-            state = {
-                "st": st,
-                "yaw": float(curr_yaw),
-                "rot_off": float(rot_off),
-                "fix_90": int(fix_90),
-                "pl": float(pl),
-                "pr": float(pr),
-                "fps": float(fps),
-                "pump_txt": ptxt,
-                "comp_on": bool(comp_on),
-                "power": float(NIVELES_LIMPIEZA[pwr_idx]),
-                "sec": sec,
-            }
-            draw_panel(screen, font, small, state)
+            # ---------------------------
+            # DIBUJO LIMITADO
+            # ---------------------------
+            if (now - last_render_time) >= INTERVALO_DIBUJO:
+                last_render_time = now
+                vis_rot = curr_yaw + rot_off
 
-            pygame.display.flip()
-            clock.tick(30)
+                screen.blit(background, (0, 0))
+
+                trail.draw(screen, cx, cy, math.radians(vis_rot))
+
+                esq = obtener_esquinas_robot(cx, cy, vis_rot)
+                pygame.draw.polygon(screen, (255, 200, 0), esq, 2)
+                pygame.draw.line(screen, (255, 80, 80), esq[0], esq[1], 4)
+                pygame.draw.circle(screen, (0, 200, 255), (cx, cy), 6)
+
+                if st == 'WAIT_DYN':
+                    pygame.draw.circle(
+                        screen,
+                        (255, 60, 60),
+                        (cx, cy),
+                        int(DISTANCIA_SEGURIDAD_DINAMICA * ESCALA_ZOOM),
+                        2
+                    )
+
+                if len(ang) > 0:
+                    ar = np.radians(ang - OFFSET_LIDAR_FISICO - fix_90 - 90 - vis_rot)
+                    xd = (cx + dist * ESCALA_ZOOM * np.cos(ar)).astype(np.int32)
+                    yd = (cy + dist * ESCALA_ZOOM * np.sin(ar)).astype(np.int32)
+
+                    step = max(2, len(ang) // 260)
+                    for i in range(0, len(ang), step):
+                        xpi = xd[i]
+                        ypi = yd[i]
+                        if 0 <= xpi < MAP_W and 0 <= ypi < ALTO_VENTANA:
+                            pygame.draw.circle(screen, (0, 255, 120), (xpi, ypi), 2)
+
+                rx_age = now - arduino.last_rx_time if arduino.last_rx_time > 0 else None
+                rx_age_txt = f"{rx_age:.2f}s" if rx_age is not None else "--"
+
+                state = {
+                    "st": st,
+                    "yaw": float(curr_yaw),
+                    "rot_off": float(rot_off),
+                    "fix_90": int(fix_90),
+                    "pl": float(pl),
+                    "pr": float(pr),
+                    "fps": float(clock.get_fps()),
+                    "pump_txt": ptxt,
+                    "comp_on": bool(comp_on),
+                    "power": float(NIVELES_LIMPIEZA[pwr_idx]),
+                    "sec": sec,
+                    "arduino_ok": arduino.is_connected(),
+                    "rx_age_txt": rx_age_txt,
+                    "last_cmd": arduino.last_command[:28],
+                    "lidar_port": PUERTO_LIDAR,
+                    "arduino_port": PUERTO_ARDUINO,
+                }
+
+                draw_panel(screen, font, small, state)
+                pygame.display.flip()
 
     except KeyboardInterrupt:
         pass
+
     finally:
         try:
-            if arduino:
-                arduino.send_command(0, 0, 0, 0)
-        except:
+            arduino.send_command(0, 0, 0, 0)
+        except Exception:
             pass
+
         try:
             lidar.close()
-        except:
+        except Exception:
             pass
+
         try:
-            if arduino:
-                arduino.close()
-        except:
+            arduino.close()
+        except Exception:
             pass
+
         pygame.quit()
+
 
 if __name__ == "__main__":
     main()
