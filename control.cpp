@@ -4,7 +4,7 @@
 // =====================================================
 // CONFIG GENERAL
 // =====================================================
-static const uint32_t SERIAL_BAUD = 115200;
+static const uint32_t SERIAL_BAUD = 9600;
 static const uint32_t TELEMETRY_HZ = 50;     // envío de DANG a Python
 static const float DT_TARGET = 1.0f / TELEMETRY_HZ;
 
@@ -119,7 +119,7 @@ bool mpuReadGyroZ_dps(float &gz_dps) {
     return false;
   }
 
-  int16_t gz_raw = (int16_t)((raw[12] << 8) | raw[13]);
+  int16_t gz_raw = (int16_t)((raw[8] << 8) | raw[9]);
 
   // ±250 dps => 131 LSB/°/s
   gz_dps = ((float)gz_raw) / 131.0f;
