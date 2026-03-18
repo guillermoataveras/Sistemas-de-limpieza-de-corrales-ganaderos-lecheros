@@ -4,20 +4,34 @@
 // =====================================================
 // CONFIG GENERAL
 // =====================================================
-static const uint32_t SERIAL_BAUD = 9600;
-static const uint32_t TELEMETRY_HZ = 50;     // envío de DANG a Python
-static const float DT_TARGET = 1.0f / TELEMETRY_HZ;
+static const uint32_t SERIAL_BAUD = 115200;
 
-// Si el yaw sale invertido, cambia a -1.0f
-static const float GYRO_SIGN = 1.0f;
-
-// Filtro / compensación gyro
-static const float GYRO_DEADBAND_DPS = 0.35f;   // zona muerta en °/s
-static const float GYRO_ALPHA = 0.25f;          // low-pass simple
+// Giro
+static const float GYRO_SIGN = 1.0f;              // cambia a -1.0f si sale invertido
+static const float GYRO_DEADBAND_DPS = 0.35f;     // zona muerta del gyro
+static const float GYRO_ALPHA = 0.25f;            // low-pass
 static const uint16_t CALIB_SAMPLES = 1500;
 
+// Envío de DANG solo por cambio
+static const float MIN_DELTA_TO_SEND_DEG = 0.20f;
+static const uint32_t MAX_SILENCE_MS = 200;
+
+// Seguridad
+static const uint32_t CMD_TIMEOUT_MS = 500;
+
 // =====================================================
-// PINES
+// CONFIG DE EJE DE YAW
+// =====================================================
+// AXIS_X = GX, AXIS_Y = GY, AXIS_Z = GZ
+static const uint8_t AXIS_X = 0;
+static const uint8_t AXIS_Y = 1;
+static const uint8_t AXIS_Z = 2;
+
+// Tú ya encontraste que el eje útil era GX
+static const uint8_t YAW_GYRO_AXIS = AXIS_X;
+
+// =====================================================
+// PINES BTS7960
 // =====================================================
 // Motor IZQ
 static const uint8_t MIZQ_ENAR = 10;
@@ -34,17 +48,17 @@ static const uint8_t MDER_PWML = 2;
 // Bomba
 static const uint8_t BOMBA_ENAL = 36;
 static const uint8_t BOMBA_ENAR = 31;
-static const uint8_t BOMBA_PWM  = 12;   // compartido a propósito
+static const uint8_t BOMBA_PWM  = 12;   // el otro PWM está a GND físicamente
 
 // Cepillos
 static const uint8_t CEP_ENAL = 29;
 static const uint8_t CEP_ENAR = 28;
-static const uint8_t CEP_PWM  = 12;     // compartido a propósito
+static const uint8_t CEP_PWM  = 12;     // mismo PWM compartido, según tu cableado
 
 // =====================================================
-// MPU9250 - REGISTROS BÁSICOS
+// MPU9250 - REGISTROS
 // =====================================================
-static const uint8_t MPU_ADDR = 0x68;   // cambia a 0x69 si AD0 está en HIGH
+static const uint8_t MPU_ADDR = 0x68;
 
 static const uint8_t REG_PWR_MGMT_1   = 0x6B;
 static const uint8_t REG_CONFIG       = 0x1A;
@@ -55,6 +69,7 @@ static const uint8_t REG_WHO_AM_I     = 0x75;
 
 // =====================================================
 // ESTADO DE COMANDOS
+// CMD:izq,der,aux_pwm,comp
 // =====================================================
 struct CommandState {
   int16_t motorIzq = 0;   // -255..255
@@ -64,17 +79,29 @@ struct CommandState {
 };
 
 CommandState cmd;
+uint32_t lastCmdMillis = 0;
 
 // =====================================================
 // ESTADO DEL GIRO
 // =====================================================
-float gyroBiasZ_dps = 0.0f;
-float gyroFilteredZ_dps = 0.0f;
+float gyroBias_dps = 0.0f;
+float gyroFiltered_dps = 0.0f;
+
+float pendingDeltaYawDeg = 0.0f;
+
 uint32_t lastGyroMicros = 0;
-uint32_t lastTelemetryMicros = 0;
+uint32_t lastTelemetryMillis = 0;
 
 // buffer serial
 String rxLine;
+
+// =====================================================
+// ESTRUCTURA RAW IMU
+// =====================================================
+struct ImuSample {
+  int16_t accelRaw[3];
+  int16_t gyroRaw[3];
+};
 
 // =====================================================
 // UTILIDADES I2C MPU9250
@@ -113,38 +140,44 @@ bool mpuReadWhoAmI(uint8_t &whoami) {
   return true;
 }
 
-bool mpuReadGyroZ_dps(float &gz_dps) {
+bool mpuReadImuSample(ImuSample &s) {
   uint8_t raw[14];
   if (!mpuReadBytes(REG_ACCEL_XOUT_H, 14, raw)) {
     return false;
   }
 
-  int16_t gz_raw = (int16_t)((raw[8] << 8) | raw[9]);
+  s.accelRaw[0] = (int16_t)((raw[0] << 8) | raw[1]);   // AX
+  s.accelRaw[1] = (int16_t)((raw[2] << 8) | raw[3]);   // AY
+  s.accelRaw[2] = (int16_t)((raw[4] << 8) | raw[5]);   // AZ
 
-  // ±250 dps => 131 LSB/°/s
-  gz_dps = ((float)gz_raw) / 131.0f;
+  s.gyroRaw[0]  = (int16_t)((raw[8] << 8) | raw[9]);   // GX
+  s.gyroRaw[1]  = (int16_t)((raw[10] << 8) | raw[11]); // GY
+  s.gyroRaw[2]  = (int16_t)((raw[12] << 8) | raw[13]); // GZ
+
   return true;
+}
+
+float rawGyroToDps(int16_t raw) {
+  return ((float)raw) / 131.0f;   // ±250 dps
 }
 
 bool initMPU9250() {
   delay(100);
 
-  if (!mpuWriteByte(REG_PWR_MGMT_1, 0x00)) return false; // wake up
+  if (!mpuWriteByte(REG_PWR_MGMT_1, 0x00)) return false;
   delay(100);
 
-  // DLPF moderado
-  if (!mpuWriteByte(REG_CONFIG, 0x03)) return false;
-
-  // GYRO_CONFIG = 0x00 -> ±250 dps
-  if (!mpuWriteByte(REG_GYRO_CONFIG, 0x00)) return false;
-
-  // ACCEL_CONFIG = 0x00 -> ±2g (aunque aquí casi no lo usamos)
-  if (!mpuWriteByte(REG_ACCEL_CONFIG, 0x00)) return false;
+  if (!mpuWriteByte(REG_CONFIG, 0x03)) return false;       // DLPF
+  if (!mpuWriteByte(REG_GYRO_CONFIG, 0x00)) return false;  // ±250 dps
+  if (!mpuWriteByte(REG_ACCEL_CONFIG, 0x00)) return false; // ±2g
 
   delay(50);
   return true;
 }
 
+// =====================================================
+// CALIBRACIÓN
+// =====================================================
 void calibrateGyro() {
   Serial.println("INFO:Calibrando gyro, deja el robot quieto...");
 
@@ -152,95 +185,95 @@ void calibrateGyro() {
   uint16_t ok = 0;
 
   for (uint16_t i = 0; i < CALIB_SAMPLES; i++) {
-    float gz;
-    if (mpuReadGyroZ_dps(gz)) {
-      sum += gz;
+    ImuSample s;
+    if (mpuReadImuSample(s)) {
+      float gyroDps[3] = {
+        rawGyroToDps(s.gyroRaw[0]),
+        rawGyroToDps(s.gyroRaw[1]),
+        rawGyroToDps(s.gyroRaw[2])
+      };
+
+      sum += gyroDps[YAW_GYRO_AXIS];
       ok++;
     }
     delay(2);
   }
 
   if (ok > 0) {
-    gyroBiasZ_dps = sum / (float)ok;
+    gyroBias_dps = sum / (float)ok;
   } else {
-    gyroBiasZ_dps = 0.0f;
+    gyroBias_dps = 0.0f;
   }
 
-  gyroFilteredZ_dps = 0.0f;
+  gyroFiltered_dps = 0.0f;
 
-  Serial.print("INFO:Gyro bias Z = ");
-  Serial.println(gyroBiasZ_dps, 6);
+  Serial.print("INFO:Gyro bias yaw = ");
+  Serial.println(gyroBias_dps, 6);
 }
 
 // =====================================================
-// CONTROL DE MOTORES
+// CONTROL BTS7960
 // =====================================================
-void stopMotorPins(
-  uint8_t enA, uint8_t enB,
-  uint8_t pwmA, uint8_t pwmB
-) {
-  digitalWrite(enA, LOW);
-  digitalWrite(enB, LOW);
-  analogWrite(pwmA, 0);
-  analogWrite(pwmB, 0);
-}
-
-void driveHBridgeSigned(
-  int16_t value,
-  uint8_t enR, uint8_t enL,
-  uint8_t pwmR, uint8_t pwmL
-) {
+void driveBTS7960(int16_t value, uint8_t r_en, uint8_t l_en, uint8_t rpwm, uint8_t lpwm) {
   value = constrain(value, -255, 255);
 
+  // En BTS7960 normalmente ambos enables van activos
+  digitalWrite(r_en, HIGH);
+  digitalWrite(l_en, HIGH);
+
   if (value == 0) {
-    digitalWrite(enR, LOW);
-    digitalWrite(enL, LOW);
-    analogWrite(pwmR, 0);
-    analogWrite(pwmL, 0);
+    analogWrite(rpwm, 0);
+    analogWrite(lpwm, 0);
     return;
   }
 
   uint8_t pwm = (uint8_t)abs(value);
 
   if (value > 0) {
-    // sentido "adelante"
-    digitalWrite(enR, HIGH);
-    digitalWrite(enL, LOW);
-    analogWrite(pwmR, pwm);
-    analogWrite(pwmL, 0);
+    analogWrite(rpwm, pwm);
+    analogWrite(lpwm, 0);
   } else {
-    // sentido "reversa"
-    digitalWrite(enR, LOW);
-    digitalWrite(enL, HIGH);
-    analogWrite(pwmR, 0);
-    analogWrite(pwmL, pwm);
+    analogWrite(rpwm, 0);
+    analogWrite(lpwm, pwm);
   }
 }
 
-// Auxiliares compartiendo PWM 12 a propósito
+void stopBTS7960(uint8_t r_en, uint8_t l_en, uint8_t rpwm, uint8_t lpwm) {
+  digitalWrite(r_en, HIGH);
+  digitalWrite(l_en, HIGH);
+  analogWrite(rpwm, 0);
+  analogWrite(lpwm, 0);
+}
+
+// =====================================================
+// AUXILIARES
+// Asumimos:
+// - el otro PWM está a GND físicamente
+// - por software solo excitamos un solo PWM
+// =====================================================
 void driveAuxiliaries(uint8_t pwmValue, bool enableAll) {
+  // Habilitamos ambos BTS7960 de auxiliares
+  digitalWrite(BOMBA_ENAL, HIGH);
+  digitalWrite(BOMBA_ENAR, HIGH);
+  digitalWrite(CEP_ENAL, HIGH);
+  digitalWrite(CEP_ENAR, HIGH);
+
   if (!enableAll || pwmValue == 0) {
-    digitalWrite(BOMBA_ENAL, LOW);
-    digitalWrite(BOMBA_ENAR, LOW);
-    digitalWrite(CEP_ENAL, LOW);
-    digitalWrite(CEP_ENAR, LOW);
-    analogWrite(BOMBA_PWM, 0); // mismo pin 12
+    analogWrite(BOMBA_PWM, 0);
     return;
   }
 
-  // Bomba y cepillos encendidos al mismo tiempo
-  digitalWrite(BOMBA_ENAL, HIGH);
-  digitalWrite(BOMBA_ENAR, LOW);
-
-  digitalWrite(CEP_ENAL, HIGH);
-  digitalWrite(CEP_ENAR, LOW);
-
-  analogWrite(BOMBA_PWM, pwmValue); // pin 12 compartido
+  // Como tú tienes el otro PWM a GND físicamente,
+  // aquí solo aplicamos el PWM "activo" compartido.
+  analogWrite(BOMBA_PWM, pwmValue);
 }
 
+// =====================================================
+// APLICAR SALIDAS
+// =====================================================
 void applyOutputs() {
-  driveHBridgeSigned(cmd.motorIzq, MIZQ_ENAR, MIZQ_ENAL, MIZQ_PWMR, MIZQ_PWML);
-  driveHBridgeSigned(cmd.motorDer, MDER_ENAR, MDER_ENAL, MDER_PWMR, MDER_PWML);
+  driveBTS7960(cmd.motorIzq, MIZQ_ENAR, MIZQ_ENAL, MIZQ_PWMR, MIZQ_PWML);
+  driveBTS7960(cmd.motorDer, MDER_ENAR, MDER_ENAL, MDER_PWMR, MDER_PWML);
   driveAuxiliaries(cmd.auxPwm, cmd.auxEnable);
 }
 
@@ -278,15 +311,10 @@ bool parseCommandLine(const String &line, CommandState &out) {
   String s3 = payload.substring(p2 + 1, p3);
   String s4 = payload.substring(p3 + 1);
 
-  int izq = s1.toInt();
-  int der = s2.toInt();
-  int aux = s3.toInt();
-  int ena = s4.toInt();
-
-  out.motorIzq = constrain(izq, -255, 255);
-  out.motorDer = constrain(der, -255, 255);
-  out.auxPwm = (uint8_t)constrain(aux, 0, 255);
-  out.auxEnable = (ena != 0);
+  out.motorIzq = constrain(s1.toInt(), -255, 255);
+  out.motorDer = constrain(s2.toInt(), -255, 255);
+  out.auxPwm = (uint8_t)constrain(s3.toInt(), 0, 255);
+  out.auxEnable = (s4.toInt() != 0);
 
   return true;
 }
@@ -305,6 +333,7 @@ void handleSerial() {
         if (parseCommandLine(rxLine, newCmd)) {
           cmd = newCmd;
           applyOutputs();
+          lastCmdMillis = millis();
         }
       }
 
@@ -320,22 +349,34 @@ void handleSerial() {
 }
 
 // =====================================================
-// TELEMETRÍA GIRO INCREMENTAL
+// SEGURIDAD
+// =====================================================
+void safetyStopIfNoCommand() {
+  if ((millis() - lastCmdMillis) > CMD_TIMEOUT_MS) {
+    if (cmd.motorIzq != 0 || cmd.motorDer != 0 || cmd.auxPwm != 0 || cmd.auxEnable) {
+      stopAllOutputs();
+    }
+  }
+}
+
+// =====================================================
+// TELEMETRÍA DE GIRO
 // Envía:
 //   DANG:<delta_deg>
-// donde delta_deg corresponde al intervalo desde el último envío
+// Solo cuando hay cambio relevante
 // =====================================================
 void updateGyroAndSendDelta() {
   uint32_t nowUs = micros();
+  uint32_t nowMs = millis();
 
   if (lastGyroMicros == 0) {
     lastGyroMicros = nowUs;
-    lastTelemetryMicros = nowUs;
+    lastTelemetryMillis = nowMs;
     return;
   }
 
-  float gz_dps_raw;
-  if (!mpuReadGyroZ_dps(gz_dps_raw)) {
+  ImuSample s;
+  if (!mpuReadImuSample(s)) {
     return;
   }
 
@@ -346,27 +387,33 @@ void updateGyroAndSendDelta() {
     return;
   }
 
-  // quitar bias
-  float gz_dps = (gz_dps_raw - gyroBiasZ_dps) * GYRO_SIGN;
+  float gyroDps[3] = {
+    rawGyroToDps(s.gyroRaw[0]),
+    rawGyroToDps(s.gyroRaw[1]),
+    rawGyroToDps(s.gyroRaw[2])
+  };
 
-  // low pass
-  gyroFilteredZ_dps = (GYRO_ALPHA * gz_dps) + ((1.0f - GYRO_ALPHA) * gyroFilteredZ_dps);
+  float yawRate_dps = (gyroDps[YAW_GYRO_AXIS] - gyroBias_dps) * GYRO_SIGN;
 
-  // deadband
-  if (fabs(gyroFilteredZ_dps) < GYRO_DEADBAND_DPS) {
-    gyroFilteredZ_dps = 0.0f;
+  gyroFiltered_dps = (GYRO_ALPHA * yawRate_dps) + ((1.0f - GYRO_ALPHA) * gyroFiltered_dps);
+
+  if (fabs(gyroFiltered_dps) < GYRO_DEADBAND_DPS) {
+    gyroFiltered_dps = 0.0f;
   }
 
-  // mandar a TELEMETRY_HZ
-  uint32_t telemetryPeriodUs = 1000000UL / TELEMETRY_HZ;
-  if ((nowUs - lastTelemetryMicros) >= telemetryPeriodUs) {
-    float dtTelemetry = (nowUs - lastTelemetryMicros) * 1e-6f;
-    lastTelemetryMicros = nowUs;
+  float deltaYawDeg = gyroFiltered_dps * dt;
+  pendingDeltaYawDeg += deltaYawDeg;
 
-    float deltaYawDeg = gyroFilteredZ_dps * dtTelemetry;
+  bool enoughChange = fabs(pendingDeltaYawDeg) >= MIN_DELTA_TO_SEND_DEG;
+  bool tooMuchSilence = ((nowMs - lastTelemetryMillis) >= MAX_SILENCE_MS) &&
+                        (fabs(pendingDeltaYawDeg) > 0.001f);
 
+  if (enoughChange || tooMuchSilence) {
     Serial.print("DANG:");
-    Serial.println(deltaYawDeg, 6);
+    Serial.println(pendingDeltaYawDeg, 6);
+
+    pendingDeltaYawDeg = 0.0f;
+    lastTelemetryMillis = nowMs;
   }
 }
 
@@ -394,6 +441,17 @@ void setup() {
   pinMode(CEP_ENAR, OUTPUT);
   pinMode(CEP_PWM, OUTPUT);
 
+  // Estado inicial BTS7960
+  digitalWrite(MIZQ_ENAR, HIGH);
+  digitalWrite(MIZQ_ENAL, HIGH);
+  digitalWrite(MDER_ENAR, HIGH);
+  digitalWrite(MDER_ENAL, HIGH);
+
+  digitalWrite(BOMBA_ENAL, HIGH);
+  digitalWrite(BOMBA_ENAR, HIGH);
+  digitalWrite(CEP_ENAL, HIGH);
+  digitalWrite(CEP_ENAR, HIGH);
+
   stopAllOutputs();
 
   Wire.begin();
@@ -413,16 +471,19 @@ void setup() {
     } else {
       Serial.println("??");
     }
+
     calibrateGyro();
   }
 
   lastGyroMicros = micros();
-  lastTelemetryMicros = lastGyroMicros;
+  lastTelemetryMillis = millis();
+  lastCmdMillis = millis();
 
   Serial.println("INFO:Sistema listo");
 }
 
 void loop() {
   handleSerial();
+  safetyStopIfNoCommand();
   updateGyroAndSendDelta();
 }

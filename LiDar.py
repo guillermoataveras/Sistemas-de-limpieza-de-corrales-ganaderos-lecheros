@@ -12,7 +12,7 @@ from ArduinoBridge import ArduinoLink
 # ==========================================
 PUERTO_LIDAR = 'COM8'
 PUERTO_ARDUINO = 'COM7'
-BAUD_ARDUINO = 9600
+BAUD_ARDUINO = 115200
 
 # --- GEOMETRÍA FÍSICA ---
 ROBOT_LARGO_MM = 750
