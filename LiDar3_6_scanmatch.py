@@ -35,8 +35,8 @@ INTERVALO_DIBUJO = 1.0 / FPS_DIBUJO
 # ==========================================
 # MAPA FIJO 8x8 m
 # ==========================================
-MAPA_ANCHO_MM = 8000
-MAPA_ALTO_MM = 8000
+MAPA_ANCHO_MM = 4500
+MAPA_ALTO_MM = 4500
 CELDA_MM = 100
 
 GRID_COLS = MAPA_ANCHO_MM // CELDA_MM
