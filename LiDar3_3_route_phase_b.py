@@ -16,30 +16,37 @@ BAUD_LIDAR = 230400
 BAUD_ARDUINO = 115200
 
 # ==========================================
-# VENTANA
+# VENTANA / LAYOUT
 # ==========================================
 ANCHO_VENTANA = 1500
 ALTO_VENTANA = 920
-PANEL_W = 390
+PANEL_W = 360
 MAP_W = ANCHO_VENTANA - PANEL_W
+
+MARGEN = 18
+MAP_TOP = 18
+HELP_H = 165
+MAP_BOTTOM = ALTO_VENTANA - HELP_H - MARGEN
 
 FPS_OBJETIVO = 30
 FPS_DIBUJO = 20
 INTERVALO_DIBUJO = 1.0 / FPS_DIBUJO
 
 # ==========================================
-# MAPA FIJO 8x8 m
+# MAPA FIJO 2x2 m
 # ==========================================
-MAPA_ANCHO_MM = 8000
-MAPA_ALTO_MM = 8000
+MAPA_ANCHO_MM = 2000
+MAPA_ALTO_MM = 2000
 CELDA_MM = 100
 
 GRID_COLS = MAPA_ANCHO_MM // CELDA_MM
 GRID_ROWS = MAPA_ALTO_MM // CELDA_MM
 
 # Referencia global = centro del LiDAR
-LIDAR_X_INICIAL_MM = 400.0
-LIDAR_Y_INICIAL_MM = 400.0
+# Se coloca al centro del mapa para que toda la cuadrícula inicial
+# del robot esté siempre contenida dentro del mapa visible.
+LIDAR_X_INICIAL_MM = MAPA_ANCHO_MM / 2
+LIDAR_Y_INICIAL_MM = MAPA_ALTO_MM / 2
 LIDAR_YAW_INICIAL_DEG = 0.0
 
 # ==========================================
@@ -84,6 +91,43 @@ NIVELES_LIMPIEZA = [0.15, 0.40, 1.00]
 RADIO_LIMPIEZA_MM = 220
 
 # ==========================================
+# MODOS DE OPERACIÓN
+# ==========================================
+MODE_MANUAL = "MANUAL"
+MODE_RUTA   = "RUTA"
+
+# Waypoints
+WP_RADIO_PX        = 7    # radio del círculo de cada waypoint en pantalla
+WP_REACH_MM        = 150  # distancia para considerar waypoint alcanzado
+COLOR_RUTA_LINE    = (255, 200,  50)
+COLOR_WP_NORMAL    = (255, 160,  30)
+COLOR_WP_ACTIVE    = ( 80, 220, 255)
+COLOR_WP_DONE      = (100, 200, 120)
+COLOR_WP_BLOCKED   = (255,  70,  70)
+COLOR_MODE_MANUAL  = (120, 255, 140)
+COLOR_MODE_RUTA    = ( 80, 200, 255)
+
+# ==========================================
+# FOLLOWER — MÁQUINA DE ESTADOS
+# ==========================================
+FSM_IDLE         = "IDLE"
+FSM_ALIGN        = "ALIGN"
+FSM_ADVANCE      = "ADVANCE"
+FSM_WP_REACHED   = "WP_REACHED"
+FSM_ROUTE_DONE   = "ROUTE_DONE"
+FSM_BLOCKED      = "BLOCKED"
+
+# Umbrales de alineación
+ALIGN_START_DEG  = 10.0   # empieza a girar si |error| > este valor
+ALIGN_DONE_DEG   =  4.0   # considera alineado cuando |error| < este valor
+
+# PWM del follower (independientes del control manual)
+PWM_FOLLOWER_ALIGN   = 65    # giro en sitio durante ALIGN
+PWM_FOLLOWER_ADVANCE = 85    # velocidad base de avance
+PWM_FOLLOWER_MIN     = 35    # mínimo PWM para que el robot se mueva
+K_HEADING            =  1.6  # ganancia proporcional de corrección de heading
+
+# ==========================================
 # ALERTA DINÁMICA
 # ==========================================
 RADIO_ALERTA_DINAMICA_MM = 500.0
@@ -94,19 +138,24 @@ UMBRAL_PUNTOS_DINAMICOS = 6
 # ==========================================
 COLOR_BG = (10, 10, 18)
 COLOR_PANEL = (18, 18, 28)
-COLOR_GRID = (42, 48, 60)
+COLOR_CARD = (26, 29, 40)
+COLOR_GRID = (210, 214, 220)
 COLOR_BORDER = (95, 105, 125)
-COLOR_DISCOVERED = (32, 42, 58)
-COLOR_CLEANED = (65, 120, 90)
-COLOR_LIDAR = (0, 255, 120)
-COLOR_ROBOT = (255, 210, 0)
+COLOR_UNDISCOVERED = (245, 247, 250)
+COLOR_DISCOVERED = (214, 232, 248)
+COLOR_CLEANED = (165, 220, 182)
+COLOR_LIDAR = (0, 220, 110)
+COLOR_ROBOT_FILL = (255, 220, 70)
+COLOR_ROBOT = (255, 180, 0)
 COLOR_LIDAR_CENTER = (0, 220, 255)
-COLOR_HEADING = (255, 100, 100)
+COLOR_HEADING = (255, 90, 90)
 COLOR_ALERT = (255, 70, 70)
-COLOR_TEXT = (220, 230, 245)
-COLOR_SUBTEXT = (180, 190, 210)
+COLOR_TEXT = (230, 236, 245)
+COLOR_SUBTEXT = (185, 194, 212)
 COLOR_OK = (120, 255, 140)
 COLOR_WARN = (255, 170, 90)
+COLOR_KEYBOX = (36, 40, 54)
+COLOR_KEYBOX_BORDER = (72, 78, 96)
 
 # ==========================================
 # UTILIDADES
@@ -407,7 +456,7 @@ class ArduinoSerialController:
     def connect(self):
         try:
             self.serial = serial.Serial(self.port, self.baudrate, timeout=0.05)
-            time.sleep(2.0)  # reset del Mega
+            time.sleep(2.0)
             self.running = True
             self.thread = threading.Thread(target=self.read_loop, daemon=True)
             self.thread.start()
@@ -544,12 +593,14 @@ class GridMap:
         cell_w = w / self.cols
         cell_h = h / self.rows
 
+        pygame.draw.rect(screen, COLOR_UNDISCOVERED, area_rect)
+
         for r in range(self.rows):
             for c in range(self.cols):
                 rx = int(x0 + c * cell_w)
                 ry = int(y0 + (self.rows - 1 - r) * cell_h)
 
-                color = (22, 22, 30)
+                color = COLOR_UNDISCOVERED
                 if self.discovered[r, c]:
                     color = COLOR_DISCOVERED
                 if self.cleaned[r, c]:
@@ -586,7 +637,9 @@ class GridMap:
             sx, sy = self.world_to_screen(area_rect, xw, yw)
             pts_screen.append((int(sx), int(sy)))
 
-        pygame.draw.polygon(screen, COLOR_ROBOT, pts_screen, 2)
+        if len(pts_screen) >= 3:
+            pygame.draw.polygon(screen, COLOR_ROBOT_FILL, pts_screen, 0)
+            pygame.draw.polygon(screen, COLOR_ROBOT, pts_screen, 2)
 
         sx, sy = self.world_to_screen(area_rect, lidar_x_mm, lidar_y_mm)
         pygame.draw.circle(screen, COLOR_LIDAR_CENTER, (int(sx), int(sy)), 5)
@@ -598,13 +651,75 @@ class GridMap:
 
         rx, _ = self.world_to_screen(area_rect, lidar_x_mm + RADIO_ALERTA_DINAMICA_MM, lidar_y_mm)
         radius_px = int(abs(rx - sx))
-        pygame.draw.circle(screen, COLOR_ALERT if alert else (120, 120, 140), (int(sx), int(sy)), radius_px, 1)
+        pygame.draw.circle(screen, COLOR_ALERT if alert else (135, 135, 150), (int(sx), int(sy)), radius_px, 1)
 
     def draw_lidar_hits(self, screen, area_rect, points_xy_mm):
         for x_mm, y_mm in points_xy_mm:
             if 0 <= x_mm <= self.width_mm and 0 <= y_mm <= self.height_mm:
                 sx, sy = self.world_to_screen(area_rect, x_mm, y_mm)
                 pygame.draw.circle(screen, COLOR_LIDAR, (int(sx), int(sy)), 2)
+
+    def screen_to_world(self, area_rect, sx, sy):
+        """Convierte coordenadas de pantalla a coordenadas globales en mm."""
+        x0, y0, w, h = area_rect
+        x_mm = (sx - x0) / w * self.width_mm
+        y_mm = (1.0 - (sy - y0) / h) * self.height_mm
+        return x_mm, y_mm
+
+    def is_inside_map_rect(self, area_rect, sx, sy):
+        x0, y0, w, h = area_rect
+        return x0 <= sx <= x0 + w and y0 <= sy <= y0 + h
+
+    def draw_route(self, screen, area_rect, waypoints, active_idx, fsm_state=FSM_IDLE):
+        """
+        Dibuja la ruta de waypoints sobre el mapa.
+        waypoints  : lista de (x_mm, y_mm)
+        active_idx : índice del waypoint objetivo actual
+        fsm_state  : estado actual del follower (afecta color del waypoint activo)
+        """
+        if not waypoints:
+            return
+
+        # Convertir todos a pantalla
+        pts_screen = [
+            self.world_to_screen(area_rect, x, y)
+            for x, y in waypoints
+        ]
+
+        # Líneas entre waypoints
+        if len(pts_screen) >= 2:
+            for i in range(len(pts_screen) - 1):
+                p1 = (int(pts_screen[i][0]),     int(pts_screen[i][1]))
+                p2 = (int(pts_screen[i+1][0]),   int(pts_screen[i+1][1]))
+                color_line = COLOR_WP_DONE if i < active_idx else COLOR_RUTA_LINE
+                pygame.draw.line(screen, color_line, p1, p2, 2)
+
+        # Color del waypoint activo según estado FSM
+        if fsm_state == FSM_BLOCKED:
+            active_color = COLOR_WP_BLOCKED
+        elif fsm_state == FSM_ALIGN:
+            active_color = (255, 230, 80)       # amarillo: girando
+        else:
+            active_color = COLOR_WP_ACTIVE      # cyan: avanzando / idle
+
+        # Puntos de waypoints
+        lbl_font = pygame.font.SysFont("Consolas", 11)
+        for i, (sx, sy) in enumerate(pts_screen):
+            if i < active_idx:
+                color = COLOR_WP_DONE
+                r = WP_RADIO_PX - 2
+            elif i == active_idx:
+                color = active_color
+                r = WP_RADIO_PX + 2
+            else:
+                color = COLOR_WP_NORMAL
+                r = WP_RADIO_PX
+
+            pygame.draw.circle(screen, color, (int(sx), int(sy)), r)
+            pygame.draw.circle(screen, (255, 255, 255), (int(sx), int(sy)), r, 1)
+
+            lbl = lbl_font.render(str(i + 1), True, (255, 255, 255))
+            screen.blit(lbl, (int(sx) + r + 2, int(sy) - 7))
 
 
 # ==========================================
@@ -618,79 +733,306 @@ def reset_runtime_state(grid_map, lidar_mem, arduino):
 
 
 # ==========================================
-# PANEL
+# UI
 # ==========================================
+def draw_card(screen, x, y, w, h, title, font, small):
+    rect = pygame.Rect(x, y, w, h)
+    pygame.draw.rect(screen, COLOR_CARD, rect, border_radius=12)
+    pygame.draw.rect(screen, COLOR_BORDER, rect, 1, border_radius=12)
+    screen.blit(font.render(title, True, COLOR_TEXT), (x + 12, y + 10))
+    return rect
+
+
 def draw_panel(screen, font, small, state):
     x0 = MAP_W
     pygame.draw.rect(screen, COLOR_PANEL, (x0, 0, PANEL_W, ALTO_VENTANA))
     pygame.draw.line(screen, (50, 60, 80), (x0, 0), (x0, ALTO_VENTANA), 2)
 
-    def txt(y, s, color=COLOR_TEXT):
-        screen.blit(font.render(s, True, color), (x0 + 16, y))
+    title_font = pygame.font.SysFont("Arial", 20, bold=True)
+    label_y = 16
+    screen.blit(title_font.render("ROBOT CLEANER PRO", True, (255, 215, 125)), (x0 + 16, label_y))
+    screen.blit(small.render(f"LiDAR: {state['lidar_port']}  |  Arduino: {state['arduino_port']}", True, COLOR_SUBTEXT), (x0 + 16, label_y + 30))
 
-    def txts(y, s, color=COLOR_SUBTEXT):
-        screen.blit(small.render(s, True, color), (x0 + 16, y))
+    cx = x0 + 12
+    cw = PANEL_W - 24
+    y = 72
 
-    txt(12, "ROBOT CLEANER PRO", (255, 210, 120))
-    txts(42, f"LiDAR: {state['lidar_port']}")
-    txts(64, f"Arduino: {state['arduino_port']}")
+    # ── MODO ──────────────────────────────────────────────
+    modo = state.get("modo", MODE_MANUAL)
+    modo_color = COLOR_MODE_RUTA if modo == MODE_RUTA else COLOR_MODE_MANUAL
+    card = draw_card(screen, cx, y, cw, 68, "MODO", font, small)
+    mode_font = pygame.font.SysFont("Arial", 22, bold=True)
+    screen.blit(mode_font.render(f"▶  {modo}", True, modo_color), (card.x + 12, card.y + 34))
+    y += 82
 
-    pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 94), (x0 + PANEL_W - 16, 94), 1)
-
-    txt(110, "POSE GLOBAL (ref = centro LiDAR)")
-    txts(138, f"X: {state['x_mm']:.1f} mm")
-    txts(160, f"Y: {state['y_mm']:.1f} mm")
-    txts(182, f"Yaw: {state['yaw_deg']:.2f} deg")
-
-    pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 212), (x0 + PANEL_W - 16, 212), 1)
-
-    txt(228, "CONTROL MANUAL")
-    txts(256, f"PWM avance: {state['pwm_base']}")
-    txts(278, f"PWM giro: {state['pwm_turn']}")
-    txts(300, f"Motor L/R: {int(state['pl'])} / {int(state['pr'])}")
-
-    pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 330), (x0 + PANEL_W - 16, 330), 1)
-
-    txt(346, "ACTUADORES")
-    txts(374, f"Limpieza: {'ON' if state['clean_on'] else 'OFF'}")
-    txts(396, f"Compresor: {'ON' if state['comp_on'] else 'OFF'}")
-    txts(418, f"Potencia: {int(state['power']*100)}%")
-    txts(440, f"PWM auxiliar: {state['aux_pwm']}")
-
-    pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 470), (x0 + PANEL_W - 16, 470), 1)
-
-    txt(486, "MAPA 8x8 m")
-    txts(514, f"Descubierto: {state['disc_pct']:.1f}%")
-    txts(536, f"Limpio: {state['clean_pct']:.1f}%")
-    txts(558, f"Ult DANG: {state['last_dang']:.4f}")
-    txts(580, f"Alert hits: {state['dyn_count']}", COLOR_ALERT if state['dyn_alert'] else COLOR_SUBTEXT)
-    txts(602, f"ALERTA DINAMICA: {'YES' if state['dyn_alert'] else 'NO'}", COLOR_ALERT if state['dyn_alert'] else COLOR_OK)
-
-    arduino_col = COLOR_OK if state['arduino_ok'] else COLOR_WARN
-    lidar_col = COLOR_OK if state['lidar_ok'] else COLOR_WARN
-    txts(624, f"Arduino: {'OK' if state['arduino_ok'] else 'DESCONECTADO'}", arduino_col)
-    txts(646, f"LiDAR: {'OK' if state['lidar_ok'] else 'DESCONECTADO'}", lidar_col)
-    txts(668, f"Ult RX Ard: {state['rx_age_txt']}")
-    txts(690, f"Ult RX LiDAR: {state['lidar_rx_txt']}")
-
-    pygame.draw.line(screen, (50, 60, 80), (x0 + 16, 720), (x0 + PANEL_W - 16, 720), 1)
-
-    txt(736, "TECLAS")
-    tips = [
-        "W/S: avanzar / reversa",
-        "A/D: girar",
-        "R: toggle limpieza",
-        "O: toggle compresor",
-        "V: cambiar potencia",
-        "1/2: PWM -/+ avance",
-        "3/4: PWM -/+ giro",
-        "P: reset mapa / yaw",
-        "X: stop total",
+    card = draw_card(screen, cx, y, cw, 122, "POSE", font, small)
+    info = [
+        f"X: {state['x_mm']:.1f} mm",
+        f"Y: {state['y_mm']:.1f} mm",
+        f"Yaw: {state['yaw_deg']:.2f} deg",
+        f"Ult DANG: {state['last_dang']:.4f}",
     ]
-    y = 764
-    for t in tips:
-        screen.blit(small.render(t, True, (170, 180, 200)), (x0 + 16, y))
-        y += 18
+    for i, s in enumerate(info):
+        screen.blit(small.render(s, True, COLOR_SUBTEXT), (card.x + 12, card.y + 40 + i * 18))
+
+    y += 136
+    card = draw_card(screen, cx, y, cw, 122, "CONTROL", font, small)
+    info = [
+        f"PWM avance: {state['pwm_base']}",
+        f"PWM giro: {state['pwm_turn']}",
+        f"Motor L/R: {int(state['pl'])} / {int(state['pr'])}",
+        f"Comando: W A S D",
+    ]
+    for i, s in enumerate(info):
+        screen.blit(small.render(s, True, COLOR_SUBTEXT), (card.x + 12, card.y + 40 + i * 18))
+
+    y += 136
+    card = draw_card(screen, cx, y, cw, 122, "ACTUADORES", font, small)
+    info = [
+        f"Limpieza: {'ON' if state['clean_on'] else 'OFF'}",
+        f"Compresor: {'ON' if state['comp_on'] else 'OFF'}",
+        f"Potencia: {int(state['power'] * 100)}%",
+        f"PWM auxiliar: {state['aux_pwm']}",
+    ]
+    for i, s in enumerate(info):
+        screen.blit(small.render(s, True, COLOR_SUBTEXT), (card.x + 12, card.y + 40 + i * 18))
+
+    y += 136
+    card = draw_card(screen, cx, y, cw, 150, "MAPA / ESTADO", font, small)
+    map_lines = [
+        (f"Descubierto: {state['disc_pct']:.1f}%", COLOR_SUBTEXT),
+        (f"Limpio: {state['clean_pct']:.1f}%", COLOR_SUBTEXT),
+        (f"Alert hits: {state['dyn_count']}", COLOR_ALERT if state['dyn_alert'] else COLOR_SUBTEXT),
+        (f"Dinamico: {'SI' if state['dyn_alert'] else 'NO'}", COLOR_ALERT if state['dyn_alert'] else COLOR_OK),
+        (f"Arduino: {'OK' if state['arduino_ok'] else 'DESCONECTADO'}", COLOR_OK if state['arduino_ok'] else COLOR_WARN),
+        (f"LiDAR: {'OK' if state['lidar_ok'] else 'DESCONECTADO'}", COLOR_OK if state['lidar_ok'] else COLOR_WARN),
+    ]
+    for i, (s, col) in enumerate(map_lines):
+        screen.blit(small.render(s, True, col), (card.x + 12, card.y + 40 + i * 18))
+
+    screen.blit(small.render(f"Ult RX Ard: {state['rx_age_txt']}", True, COLOR_SUBTEXT), (card.x + 12, card.y + 40 + 6 * 18))
+    screen.blit(small.render(f"Ult RX LiDAR: {state['lidar_rx_txt']}", True, COLOR_SUBTEXT), (card.x + 12, card.y + 40 + 7 * 18))
+
+    # ── RUTA ──────────────────────────────────────────────
+    y += 164
+    n_wps    = state.get("n_waypoints", 0)
+    wp_idx   = state.get("waypoint_idx", 0)
+    fsm      = state.get("fsm_state", FSM_IDLE)
+    modo_now = state.get("modo", MODE_MANUAL)
+
+    FSM_COLORS = {
+        FSM_IDLE:       COLOR_SUBTEXT,
+        FSM_ALIGN:      (255, 230,  80),
+        FSM_ADVANCE:    ( 80, 220, 255),
+        FSM_WP_REACHED: (120, 255, 140),
+        FSM_BLOCKED:    (255,  70,  70),
+        FSM_ROUTE_DONE: (120, 255, 140),
+    }
+    fsm_color = FSM_COLORS.get(fsm, COLOR_SUBTEXT)
+
+    card = draw_card(screen, cx, y, cw, 116, "RUTA", font, small)
+    screen.blit(
+        small.render(f"Estado:    {fsm}", True,
+                     fsm_color if modo_now == MODE_RUTA else COLOR_SUBTEXT),
+        (card.x + 12, card.y + 40)
+    )
+    screen.blit(
+        small.render(f"Waypoints: {n_wps}", True, COLOR_SUBTEXT),
+        (card.x + 12, card.y + 58)
+    )
+    screen.blit(
+        small.render(
+            f"Activo:    {wp_idx + 1 if n_wps > 0 else '-'} / {n_wps if n_wps > 0 else '-'}",
+            True, COLOR_WP_ACTIVE if modo_now == MODE_RUTA else COLOR_SUBTEXT
+        ),
+        (card.x + 12, card.y + 76)
+    )
+    screen.blit(
+        small.render("[Click] Añadir   [RClick] Borrar ult.", True, COLOR_SUBTEXT),
+        (card.x + 12, card.y + 94)
+    )
+
+
+def draw_help_bar(screen, font, small, state, area_rect):
+    x, y, w, h = area_rect
+    pygame.draw.rect(screen, COLOR_CARD, area_rect, border_radius=12)
+    pygame.draw.rect(screen, COLOR_BORDER, area_rect, 1, border_radius=12)
+
+    screen.blit(font.render("CONTROLES", True, COLOR_TEXT), (x + 14, y + 10))
+    screen.blit(small.render("Se reordenaron para que siempre queden visibles en pantalla.", True, COLOR_SUBTEXT), (x + 14, y + 36))
+
+    items = [
+        ("Tab",       "Manual / Ruta"),
+        ("W / S",     "Avanzar / reversa"),
+        ("A / D",     "Girar"),
+        ("R",         "Toggle limpieza"),
+        ("O",         "Toggle compresor"),
+        ("V",         "Cambiar potencia"),
+        ("1 / 2",     "PWM avance - / +"),
+        ("3 / 4",     "PWM giro - / +"),
+        ("P",         "Reset mapa / yaw"),
+        ("X",         "Stop total"),
+        ("BkSp",      "Limpiar waypoints"),
+    ]
+
+    cols = 3
+    inner_x = x + 14
+    inner_y = y + 62
+    gap_x = 12
+    gap_y = 10
+    box_w = (w - 28 - gap_x * (cols - 1)) // cols
+    box_h = 38
+
+    for idx, (key_txt, desc) in enumerate(items):
+        col = idx % cols
+        row = idx // cols
+        bx = inner_x + col * (box_w + gap_x)
+        by = inner_y + row * (box_h + gap_y)
+        rect = pygame.Rect(bx, by, box_w, box_h)
+        pygame.draw.rect(screen, COLOR_KEYBOX, rect, border_radius=10)
+        pygame.draw.rect(screen, COLOR_KEYBOX_BORDER, rect, 1, border_radius=10)
+        screen.blit(font.render(key_txt, True, (255, 214, 120)), (bx + 10, by + 6))
+        screen.blit(small.render(desc, True, COLOR_SUBTEXT), (bx + 82, by + 10))
+
+    legend_x = x + w - 205
+    legend_y = y + 10
+    legend_items = [
+        (COLOR_UNDISCOVERED, "Mapa base visible"),
+        (COLOR_DISCOVERED, "Descubierto"),
+        (COLOR_CLEANED, "Limpio"),
+        (COLOR_LIDAR, "Puntos LiDAR"),
+    ]
+    for i, (col, label) in enumerate(legend_items):
+        ly = legend_y + i * 18
+        pygame.draw.rect(screen, col, (legend_x, ly + 2, 12, 12))
+        pygame.draw.rect(screen, COLOR_BORDER, (legend_x, ly + 2, 12, 12), 1)
+        screen.blit(small.render(label, True, COLOR_SUBTEXT), (legend_x + 18, ly))
+
+
+def get_map_rect():
+    available_w = MAP_W - 2 * MARGEN
+    available_h = MAP_BOTTOM - MAP_TOP
+    map_size = min(available_w, available_h)
+    map_x = MARGEN + (available_w - map_size) // 2
+    map_y = MAP_TOP + (available_h - map_size) // 2
+    return (map_x, map_y, map_size, map_size)
+
+
+# ==========================================
+# FOLLOWER DE WAYPOINTS
+# ==========================================
+def _normalize_angle(deg):
+    """Normaliza un ángulo al rango (-180, 180]."""
+    while deg >  180.0: deg -= 360.0
+    while deg <= -180.0: deg += 360.0
+    return deg
+
+
+def follow_route_step(robot_x, robot_y, yaw_deg,
+                      waypoints, wp_idx, fsm_state,
+                      dyn_alert):
+    """
+    Ejecuta un paso de la máquina de estados del follower.
+
+    Retorna:
+        pl          : PWM motor izquierdo  (-255..255)
+        pr          : PWM motor derecho    (-255..255)
+        new_state   : nuevo estado FSM
+        new_wp_idx  : nuevo índice de waypoint
+    """
+    pl, pr = 0.0, 0.0
+
+    # ── Sin waypoints ──────────────────────────────────────────────
+    if not waypoints or wp_idx >= len(waypoints):
+        return 0.0, 0.0, FSM_IDLE, wp_idx
+
+    target_x, target_y = waypoints[wp_idx]
+
+    # Distancia y heading al waypoint actual
+    dx = target_x - robot_x
+    dy = target_y - robot_y
+    dist_mm = math.hypot(dx, dy)
+    target_heading = math.degrees(math.atan2(dy, dx))
+    heading_error  = _normalize_angle(target_heading - yaw_deg)
+
+    # ══════════════════════════════════════════════════════════════
+    # IDLE — arrancar si hay waypoints
+    # ══════════════════════════════════════════════════════════════
+    if fsm_state == FSM_IDLE:
+        return 0.0, 0.0, FSM_ALIGN, wp_idx
+
+    # ══════════════════════════════════════════════════════════════
+    # ALIGN — girar en sitio hacia el waypoint
+    # ══════════════════════════════════════════════════════════════
+    elif fsm_state == FSM_ALIGN:
+        if abs(heading_error) < ALIGN_DONE_DEG:
+            # Ya está alineado → pasar a avanzar
+            return 0.0, 0.0, FSM_ADVANCE, wp_idx
+
+        # Determinar sentido de giro
+        pwm = PWM_FOLLOWER_ALIGN
+        if heading_error > 0:
+            # Girar a la izquierda (CCW): izq atrás, der adelante
+            pl, pr = -pwm, +pwm
+        else:
+            # Girar a la derecha (CW): izq adelante, der atrás
+            pl, pr = +pwm, -pwm
+
+        return pl, pr, FSM_ALIGN, wp_idx
+
+    # ══════════════════════════════════════════════════════════════
+    # ADVANCE — avanzar con corrección proporcional de heading
+    # ══════════════════════════════════════════════════════════════
+    elif fsm_state == FSM_ADVANCE:
+        # Obstáculo detectado → bloquear
+        if dyn_alert:
+            return 0.0, 0.0, FSM_BLOCKED, wp_idx
+
+        # Waypoint alcanzado
+        if dist_mm < WP_REACH_MM:
+            return 0.0, 0.0, FSM_WP_REACHED, wp_idx
+
+        # Si el error de heading creció demasiado, re-alinear
+        if abs(heading_error) > ALIGN_START_DEG * 2.5:
+            return 0.0, 0.0, FSM_ALIGN, wp_idx
+
+        # Corrección proporcional de heading
+        correction = clamp(K_HEADING * heading_error,
+                           -PWM_FOLLOWER_ADVANCE * 0.6,
+                            PWM_FOLLOWER_ADVANCE * 0.6)
+
+        base = PWM_FOLLOWER_ADVANCE
+        pl = clamp(base - correction, PWM_FOLLOWER_MIN, 255)
+        pr = clamp(base + correction, PWM_FOLLOWER_MIN, 255)
+
+        return pl, pr, FSM_ADVANCE, wp_idx
+
+    # ══════════════════════════════════════════════════════════════
+    # WP_REACHED — avanzar al siguiente o terminar ruta
+    # ══════════════════════════════════════════════════════════════
+    elif fsm_state == FSM_WP_REACHED:
+        next_idx = wp_idx + 1
+        if next_idx >= len(waypoints):
+            return 0.0, 0.0, FSM_ROUTE_DONE, wp_idx
+        return 0.0, 0.0, FSM_ALIGN, next_idx
+
+    # ══════════════════════════════════════════════════════════════
+    # BLOCKED — esperar a que el obstáculo despeje
+    # ══════════════════════════════════════════════════════════════
+    elif fsm_state == FSM_BLOCKED:
+        if not dyn_alert:
+            # Obstáculo despejado → re-alinear por seguridad
+            return 0.0, 0.0, FSM_ALIGN, wp_idx
+        return 0.0, 0.0, FSM_BLOCKED, wp_idx
+
+    # ══════════════════════════════════════════════════════════════
+    # ROUTE_DONE — señal para que main() cambie a MANUAL
+    # ══════════════════════════════════════════════════════════════
+    elif fsm_state == FSM_ROUTE_DONE:
+        return 0.0, 0.0, FSM_ROUTE_DONE, wp_idx
+
+    # Fallback
+    return 0.0, 0.0, FSM_IDLE, wp_idx
 
 
 # ==========================================
@@ -699,7 +1041,7 @@ def draw_panel(screen, font, small, state):
 def main():
     pygame.init()
     screen = pygame.display.set_mode((ANCHO_VENTANA, ALTO_VENTANA))
-    pygame.display.set_caption("Robot Cleaner Pro - Manual Stable")
+    pygame.display.set_caption("Robot Cleaner Pro - UI + Full Grid Visible")
     clock = pygame.time.Clock()
 
     font = pygame.font.SysFont("Arial", 18, bold=True)
@@ -736,12 +1078,16 @@ def main():
     pl = 0.0
     pr = 0.0
 
+    # ── Modo y ruta ──────────────────────────────────────
+    modo = MODE_MANUAL
+    ruta_waypoints = []   # lista de (x_mm, y_mm)
+    waypoint_idx   = 0   # índice del waypoint activo
+    fsm_state      = FSM_IDLE
+
     last_render_time = 0.0
 
-    map_size = min(MAP_W - 40, ALTO_VENTANA - 40)
-    map_x = 20
-    map_y = (ALTO_VENTANA - map_size) // 2
-    map_rect = (map_x, map_y, map_size, map_size)
+    map_rect = get_map_rect()
+    help_rect = (MARGEN, ALTO_VENTANA - HELP_H - MARGEN, MAP_W - 2 * MARGEN, HELP_H)
 
     try:
         while True:
@@ -756,7 +1102,23 @@ def main():
                     raise KeyboardInterrupt
 
                 if e.type == pygame.KEYDOWN:
-                    if e.key == pygame.K_r:
+                    if e.key == pygame.K_TAB:
+                        modo = MODE_RUTA if modo == MODE_MANUAL else MODE_MANUAL
+                        if modo == MODE_RUTA:
+                            # Entrar en RUTA: detener motores, reiniciar follower
+                            pl, pr = 0.0, 0.0
+                            arduino.send_command(0, 0, 0, 0)
+                            waypoint_idx = 0
+                            fsm_state    = FSM_IDLE   # arrancará en el próximo tick
+                        else:
+                            # Volver a MANUAL: detener follower
+                            pl, pr = 0.0, 0.0
+                            arduino.send_command(0, 0, 0, 0)
+                            fsm_state = FSM_IDLE
+                    elif e.key == pygame.K_BACKSPACE:
+                        ruta_waypoints.clear()
+                        waypoint_idx = 0
+                    elif e.key == pygame.K_r:
                         clean_sys = not clean_sys
                     elif e.key == pygame.K_o:
                         comp_on = not comp_on
@@ -784,16 +1146,23 @@ def main():
                         pl = 0.0
                         pr = 0.0
 
-            keys = pygame.key.get_pressed()
-            pl, pr = get_manual_drive(keys, pwm_base, pwm_turn)
+                # ── Click del mouse para gestionar waypoints ──────────
+                if e.type == pygame.MOUSEBUTTONDOWN:
+                    mx, my = e.pos
+                    if grid_map.is_inside_map_rect(map_rect, mx, my):
+                        if e.button == 1:   # click izquierdo → añadir
+                            wx, wy = grid_map.screen_to_world(map_rect, mx, my)
+                            # Clampear dentro del mapa
+                            wx = clamp(wx, 0.0, float(MAPA_ANCHO_MM))
+                            wy = clamp(wy, 0.0, float(MAPA_ALTO_MM))
+                            ruta_waypoints.append((wx, wy))
+                        elif e.button == 3: # click derecho → borrar último
+                            if ruta_waypoints:
+                                ruta_waypoints.pop()
+                                waypoint_idx = clamp(waypoint_idx, 0, max(0, len(ruta_waypoints) - 1))
 
-            pl_cmd = pl * SIGNO_MOTOR_IZQ
-            pr_cmd = pr * SIGNO_MOTOR_DER
-
-            aux_pwm = int(255 * NIVELES_LIMPIEZA[pwr_idx]) if clean_sys else 0
-            arduino.send_command(pl_cmd, pr_cmd, aux_pwm, comp_on)
-
-            yaw_deg = LIDAR_YAW_INICIAL_DEG + arduino.get_yaw()
+            # ── Pipeline de sensores ───────────────────────────────
+            yaw_deg   = LIDAR_YAW_INICIAL_DEG + arduino.get_yaw()
             last_dang = arduino.get_last_dang()
 
             lidar_hits_global = []
@@ -806,11 +1175,37 @@ def main():
 
             ang, dist = lidar_mem.get_scan(now=now)
             dyn_alert, dyn_count = detect_dynamic_obstacles(ang, dist)
+            lidar_hits_global   = transform_scan_to_global(
+                ang, dist, lidar_x_mm, lidar_y_mm, yaw_deg
+            )
 
-            lidar_hits_global = transform_scan_to_global(ang, dist, lidar_x_mm, lidar_y_mm, yaw_deg)
+            # ── Decisión de movimiento según modo ─────────────────
+            if modo == MODE_MANUAL:
+                keys = pygame.key.get_pressed()
+                pl, pr = get_manual_drive(keys, pwm_base, pwm_turn)
+            else:
+                # Modo RUTA: ejecutar un paso del follower
+                pl, pr, fsm_state, waypoint_idx = follow_route_step(
+                    lidar_x_mm, lidar_y_mm, yaw_deg,
+                    ruta_waypoints, waypoint_idx,
+                    fsm_state, dyn_alert
+                )
+
+                # Ruta terminada → volver a MANUAL automáticamente
+                if fsm_state == FSM_ROUTE_DONE:
+                    modo      = MODE_MANUAL
+                    fsm_state = FSM_IDLE
+                    pl, pr    = 0.0, 0.0
+                    arduino.send_command(0, 0, 0, 0)
 
             for xp, yp in lidar_hits_global:
                 grid_map.mark_discovered(xp, yp)
+
+            pl_cmd = pl * SIGNO_MOTOR_IZQ
+            pr_cmd = pr * SIGNO_MOTOR_DER
+
+            aux_pwm = int(255 * NIVELES_LIMPIEZA[pwr_idx]) if clean_sys else 0
+            arduino.send_command(pl_cmd, pr_cmd, aux_pwm, comp_on)
 
             if clean_sys and (abs(pl) > 5 or abs(pr) > 5):
                 grid_map.mark_cleaned_disk(lidar_x_mm, lidar_y_mm, radius_mm=RADIO_LIMPIEZA_MM)
@@ -825,6 +1220,7 @@ def main():
 
                 grid_map.draw(screen, map_rect)
                 grid_map.draw_lidar_hits(screen, map_rect, lidar_hits_global)
+                grid_map.draw_route(screen, map_rect, ruta_waypoints, waypoint_idx, fsm_state)
                 grid_map.draw_robot(screen, map_rect, lidar_x_mm, lidar_y_mm, yaw_deg, alert=dyn_alert)
 
                 rx_age = now - arduino.last_rx_time if arduino.last_rx_time > 0 else None
@@ -834,6 +1230,10 @@ def main():
                 lidar_rx_txt = f"{lidar_age:.2f}s" if lidar_age is not None else "--"
 
                 state = {
+                    "modo": modo,
+                    "fsm_state": fsm_state,
+                    "n_waypoints": len(ruta_waypoints),
+                    "waypoint_idx": waypoint_idx,
                     "lidar_port": PUERTO_LIDAR,
                     "arduino_port": PUERTO_ARDUINO,
                     "x_mm": lidar_x_mm,
@@ -859,6 +1259,7 @@ def main():
                 }
 
                 draw_panel(screen, font, small, state)
+                draw_help_bar(screen, font, small, state, help_rect)
                 pygame.display.flip()
 
     except KeyboardInterrupt:
