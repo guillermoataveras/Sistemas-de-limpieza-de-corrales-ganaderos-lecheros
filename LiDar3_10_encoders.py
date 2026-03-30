@@ -1,4 +1,9 @@
 import math
+
+# Calculadas tras definir WHEEL_DIAMETER_MM (al final del bloque de constantes)
+# Se definen aquí como forward-declaration; se sobrescriben abajo
+WHEEL_CIRCUM_MM  = math.pi * 76.2   # perímetro rueda (actualizar si cambia WHEEL_DIAMETER_MM)
+MM_PER_DEG_WHEEL = WHEEL_CIRCUM_MM / 360.0  # mm por grado de giro del eje
 import time
 import struct
 import threading
@@ -64,14 +69,19 @@ OFFSET_LIDAR_FISICO = 186.0
 # ==========================================
 # ODOMETRÍA / ESTIMACIÓN DE POSE
 # ==========================================
-WHEEL_TRACK_MM     = 395.0   # separación centro-centro ruedas motrices
+WHEEL_TRACK_MM     = 395.0   # separación centro-centro ruedas motrices (medida real)
 
-# Velocidad lineal estimada.
-# Ajusta VEL_MM_PER_PWM midiendo cuánto avanza el robot en 1 s a un PWM fijo.
-# Ejemplo: si a PWM=100 avanza ~350 mm/s → VEL_MM_PER_PWM = 3.5
-VEL_MM_PER_PWM     = 3.5     # mm/s por unidad de PWM
+# ── Encoders AS5600 ──────────────────────────────────
+# Mide el diámetro real con cinta métrica:
+# marca la rueda, hazla rodar 1 vuelta completa → mide la distancia → diámetro = dist/π
+WHEEL_DIAMETER_MM  = 76.2    # ← CALIBRAR con cinta métrica
+# WHEEL_CIRCUM_MM se calcula después de importar math (ver abajo)
 
-# Por debajo de este PWM (abs) se considera que la rueda no se mueve
+# Umbral mínimo de delta (deg) para considerar que la rueda se movió
+ENC_DELTA_THRESHOLD_DEG = 0.5
+
+# Fallback PWM (activo solo si no hay datos de encoder disponibles)
+VEL_MM_PER_PWM     = 3.5
 PWM_VEL_THRESHOLD  = 30
 
 # Corrección LiDAR (solo cuando el robot está parado)
@@ -545,9 +555,16 @@ class ArduinoSerialController:
         self.lock = threading.Lock()
 
         self.accumulated_yaw_deg = 0.0
-        self.last_dang = 0.0
-        self.last_rx_time = 0.0
-        self.last_command = "CMD:0,0,0,0"
+        self.last_dang           = 0.0
+        self.last_rx_time        = 0.0
+        self.last_command        = "CMD:0,0,0,0"
+
+        # ── Encoders AS5600 ───────────────────────────────
+        self.enc_acum_izq   = 0.0   # ángulo acumulado rueda izq (grados)
+        self.enc_acum_der   = 0.0   # ángulo acumulado rueda der (grados)
+        self.enc_delta_izq  = 0.0   # delta desde último reporte (grados)
+        self.enc_delta_der  = 0.0   # delta desde último reporte (grados)
+        self.enc_available  = False # True después del primer mensaje ENC:
 
     def connect(self):
         try:
@@ -578,6 +595,25 @@ class ArduinoSerialController:
                                 self.last_dang = val
                         except Exception:
                             pass
+
+                    elif line.startswith("ENC:"):
+                        # Formato: ENC:acum_izq,acum_der,delta_izq,delta_der
+                        try:
+                            parts = line[4:].split(",")
+                            if len(parts) == 4:
+                                acum_i  = float(parts[0])
+                                acum_d  = float(parts[1])
+                                delta_i = float(parts[2])
+                                delta_d = float(parts[3])
+                                with self.lock:
+                                    self.enc_acum_izq  = acum_i
+                                    self.enc_acum_der  = acum_d
+                                    self.enc_delta_izq = delta_i
+                                    self.enc_delta_der = delta_d
+                                    self.enc_available = True
+                        except Exception:
+                            pass
+
                 else:
                     time.sleep(0.005)
             except Exception:
@@ -593,6 +629,18 @@ class ArduinoSerialController:
     def get_last_dang(self):
         with self.lock:
             return self.last_dang
+
+    def get_encoder_deltas(self):
+        """Retorna (delta_izq_deg, delta_der_deg, available).
+        Los deltas son los acumulados desde el último reporte del Arduino (20ms).
+        """
+        with self.lock:
+            return self.enc_delta_izq, self.enc_delta_der, self.enc_available
+
+    def get_encoder_accum(self):
+        """Retorna (acum_izq_deg, acum_der_deg)."""
+        with self.lock:
+            return self.enc_acum_izq, self.enc_acum_der
 
     def reset_yaw_accumulator(self):
         with self.lock:
@@ -1094,30 +1142,39 @@ def draw_panel(screen, font, small, state):
     y += card_h + 14
 
     card = draw_card(screen, cx, y, cw, 148, "POSE", font, small)
-    corr_mm      = state.get("pose_correction_mm", 0.0)
-    match_qual   = state.get("match_quality", 0.0)
-    has_walls    = state.get("has_wall_map", False)
-    moving       = state.get("robot_moving", False)
+    corr_mm    = state.get("pose_correction_mm", 0.0)
+    match_qual = state.get("match_quality", 0.0)
+    has_walls  = state.get("has_wall_map", False)
+    enc_ok     = state.get("enc_available", False)
 
-    if not has_walls:
-        fuente_txt = "ODOM PWM (sin mapa)"
-        fuente_col = COLOR_WARN
-        corr_col   = COLOR_SUBTEXT
-    else:
-        fuente_txt = "SCAN MATCHING"
+    if has_walls:
+        fuente_txt = "SCAN MATCH" + (" + ENC" if enc_ok else "")
         fuente_col = (120, 200, 255)
         corr_col   = COLOR_OK if match_qual >= 50 else COLOR_WARN
+    elif enc_ok:
+        fuente_txt = "ENCODERS"
+        fuente_col = COLOR_OK
+        corr_col   = COLOR_SUBTEXT
+    else:
+        fuente_txt = "ODOM PWM (fallback)"
+        fuente_col = COLOR_WARN
+        corr_col   = COLOR_SUBTEXT
+
+    enc_acum_i = state.get("enc_acum_izq", 0.0)
+    enc_acum_d = state.get("enc_acum_der", 0.0)
 
     info = [
-        (f"X: {state['x_mm']:.1f} mm",              COLOR_SUBTEXT),
-        (f"Y: {state['y_mm']:.1f} mm",              COLOR_SUBTEXT),
-        (f"Yaw: {state['yaw_deg']:.2f} deg",         COLOR_SUBTEXT),
-        (f"Ult DANG: {state['last_dang']:.4f}",      COLOR_SUBTEXT),
-        (f"Fuente: {fuente_txt}",                    fuente_col),
+        (f"X: {state['x_mm']:.1f} mm",               COLOR_SUBTEXT),
+        (f"Y: {state['y_mm']:.1f} mm",               COLOR_SUBTEXT),
+        (f"Yaw: {state['yaw_deg']:.2f} deg",          COLOR_SUBTEXT),
+        (f"Fuente: {fuente_txt}",                     fuente_col),
         (f"Match: {match_qual:.0f}%  corr:{corr_mm:.1f}mm", corr_col),
+        (f"Enc I:{enc_acum_i:.0f}°  D:{enc_acum_d:.0f}°",
+             COLOR_OK if enc_ok else (80, 80, 90)),
     ]
     for i, (s, col) in enumerate(info):
-        screen.blit(small.render(s, True, col), (card.x + 12, card.y + 40 + i * 17))
+        screen.blit(small.render(s, True, col),
+                    (card.x + 12, card.y + 40 + i * 17))
 
     y += 162   # POSE card ahora es más alta
     card = draw_card(screen, cx, y, cw, 122, "CONTROL", font, small)
@@ -1290,36 +1347,57 @@ def get_map_rect():
 # ==========================================
 
 def odometry_step(x_mm, y_mm, yaw_deg, pl_cmd, pr_cmd, dt):
-    """
-    Dead reckoning por cinemática diferencial.
-
-    pl_cmd / pr_cmd : PWM con signo ya aplicado al motor (-255..255)
-    yaw_deg         : heading actual del giroscopio (fuente de verdad para ángulo)
-    dt              : tiempo transcurrido en segundos
-
-    Retorna (new_x_mm, new_y_mm)
-    """
+    """Dead reckoning por PWM — fallback cuando no hay encoders."""
     if dt <= 0.0 or dt > 0.25:
         return x_mm, y_mm
 
     def pwm_to_vel(pwm):
         if abs(pwm) < PWM_VEL_THRESHOLD:
             return 0.0
-        return float(pwm) * VEL_MM_PER_PWM   # mm/s con signo
+        return float(pwm) * VEL_MM_PER_PWM
 
     v_l = pwm_to_vel(pl_cmd)
     v_r = pwm_to_vel(pr_cmd)
-
-    v_linear = (v_l + v_r) * 0.5            # velocidad lineal del centro
-
+    v_linear = (v_l + v_r) * 0.5
     yaw_rad = math.radians(yaw_deg)
-    new_x = x_mm + v_linear * math.cos(yaw_rad) * dt
-    new_y = y_mm + v_linear * math.sin(yaw_rad) * dt
+    new_x = clamp(x_mm + v_linear * math.cos(yaw_rad) * dt, 0.0, float(MAPA_ANCHO_MM))
+    new_y = clamp(y_mm + v_linear * math.sin(yaw_rad) * dt, 0.0, float(MAPA_ALTO_MM))
+    return new_x, new_y
 
-    # Clampear dentro del mapa
-    new_x = clamp(new_x, 0.0, float(MAPA_ANCHO_MM))
-    new_y = clamp(new_y, 0.0, float(MAPA_ALTO_MM))
 
+def odometry_encoder_step(x_mm, y_mm, yaw_deg,
+                           delta_izq_deg, delta_der_deg):
+    """
+    Odometría diferencial con encoders AS5600.
+
+    Usa el yaw del giroscopio (ya acumulado externamente) como heading
+    real — no recalcula el ángulo desde los encoders, lo que evita
+    el drift rotacional que tienen los encoders solos en superficies
+    irregulares como un corral.
+
+    delta_izq_deg, delta_der_deg : grados girados por cada rueda
+                                   desde el último reporte del Arduino
+
+    Retorna (new_x_mm, new_y_mm)
+    """
+    # Filtrar ruido de quietud
+    if (abs(delta_izq_deg) < ENC_DELTA_THRESHOLD_DEG and
+            abs(delta_der_deg) < ENC_DELTA_THRESHOLD_DEG):
+        return x_mm, y_mm
+
+    # Distancia lineal recorrida por cada rueda
+    dist_izq = delta_izq_deg * MM_PER_DEG_WHEEL   # mm, con signo
+    dist_der = delta_der_deg * MM_PER_DEG_WHEEL
+
+    # Desplazamiento lineal del centro del robot
+    v_linear = (dist_izq + dist_der) * 0.5
+
+    # Proyectar sobre el heading actual del giroscopio
+    yaw_rad = math.radians(yaw_deg)
+    new_x = clamp(x_mm + v_linear * math.cos(yaw_rad),
+                  0.0, float(MAPA_ANCHO_MM))
+    new_y = clamp(y_mm + v_linear * math.sin(yaw_rad),
+                  0.0, float(MAPA_ALTO_MM))
     return new_x, new_y
 
 
@@ -2224,10 +2302,18 @@ def main():
             robot_moving = (abs(pl_cmd) >= PWM_VEL_THRESHOLD or
                             abs(pr_cmd) >= PWM_VEL_THRESHOLD)
 
+            # Leer deltas de encoders (disponibles si Arduino envía ENC:)
+            enc_delta_izq, enc_delta_der, enc_available = arduino.get_encoder_deltas()
+
             if wall_centers_xy is not None:
-                # ── MODO PRINCIPAL: Scan matching ──────────────────
-                # El yaw sigue viniendo del giroscopio (confiable).
-                # X/Y se corrigen con nearest-neighbor cada N ticks.
+                # ── NIVEL 1: Scan matching (máxima precisión) ──────
+                # Activo cuando ya existe mapa de paredes (post F1).
+                # Encoders alimentan la pose entre correcciones de matching.
+                if enc_available:
+                    lidar_x_mm, lidar_y_mm = odometry_encoder_step(
+                        lidar_x_mm, lidar_y_mm, yaw_deg,
+                        enc_delta_izq, enc_delta_der
+                    )
                 match_tick_counter += 1
                 if match_tick_counter >= MATCH_EVERY_N_TICKS:
                     match_tick_counter = 0
@@ -2239,15 +2325,26 @@ def main():
                         wall_centers_xy
                     )
                     last_pose_correction = last_match_corr_mm
+
+            elif enc_available:
+                # ── NIVEL 2: Encoders solos (sin mapa aún) ─────────
+                # Odometría diferencial real — mucho mejor que PWM.
+                lidar_x_mm, lidar_y_mm = odometry_encoder_step(
+                    lidar_x_mm, lidar_y_mm, yaw_deg,
+                    enc_delta_izq, enc_delta_der
+                )
+                last_match_quality   = 0.0
+                last_match_corr_mm   = 0.0
+                last_pose_correction = 0.0
+
             else:
-                # ── FALLBACK: dead reckoning por PWM ──────────────
-                # Activo cuando no hay mapa de paredes todavía.
+                # ── NIVEL 3: Fallback PWM (sin encoders ni mapa) ───
                 lidar_x_mm, lidar_y_mm = odometry_step(
                     lidar_x_mm, lidar_y_mm, yaw_deg,
                     pl_cmd, pr_cmd, dt
                 )
-                last_match_quality  = 0.0
-                last_match_corr_mm  = 0.0
+                last_match_quality   = 0.0
+                last_match_corr_mm   = 0.0
                 last_pose_correction = 0.0
 
             last_pl_cmd = pl_cmd
@@ -2303,6 +2400,9 @@ def main():
                     "pose_correction_mm": last_pose_correction,
                     "robot_moving": robot_moving,
                     "match_quality": last_match_quality,
+                    "enc_available": enc_available,
+                    "enc_acum_izq":  enc_delta_izq,
+                    "enc_acum_der":  enc_delta_der,
                     "frontal_blocked": frontal_blocked,
                     "frontal_count": last_frontal_count,
                     "skipped_count": len(skipped_wp_indices),
