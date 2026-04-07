@@ -182,8 +182,8 @@ SIGNO_MOTOR_DER = 1
 # ==========================================
 # ACTUADORES
 # ==========================================
-NIVELES_LIMPIEZA = [0.15, 0.40, 1.00]
-RADIO_LIMPIEZA_MM = 220
+NIVELES_LIMPIEZA = [0.25, 0.40, 0.60]
+RADIO_LIMPIEZA_MM = 330
 
 # ==========================================
 # MODOS DE OPERACIÓN
