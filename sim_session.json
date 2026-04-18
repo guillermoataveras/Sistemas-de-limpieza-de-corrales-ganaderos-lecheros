@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "timestamp": "2026-04-17T21:34:46",
+  "clean_exit": true,
+  "x_mm": 1789.251961635715,
+  "y_mm": 3299.2653577109977,
+  "yaw_deg": -4947.836312565327,
+  "patron_actual": "BOW-TIE",
+  "clean_threshold": 90.0,
+  "replan_count": 10,
+  "mission_home_x": 2606.678079490506,
+  "mission_home_y": 2745.300561921302,
+  "cam_dirt_ema": 0.2113401802196308,
+  "grid_rows": 50,
+  "grid_cols": 50,
+  "walls": "eJxjYBjZgBELIKSDGDOQFREwEG4ESTrQXEKkDtJcNapjVMdg1MFIIx2jWXBUx6gOonQQrCahqkitavEbi7WmZSTK7SS6fCgBAFGqAK8=",
+  "cleaned": "eJztwQENAAAAwqD3T20ON6AAAOjMAAnEAAE=",
+  "cleanable": "eJxjYBgFIxYwEgCjOkZ1jOoY1TGqYyToGAUMQxMAAJeiA+E=",
+  "discovered": "eJzt1sESgCAIRVH4/59udJzRJINb1Mq35mgpZiIlGov0YKGfCUXFvwnlYmdOXUHUCq2DMJDYfrXCeJcaEBCnk1YHcMRU709zUX8nzDsEBAQrwkUyoUCypsh8KL7lK6KUOMASpcIHA4Of5XIWQflOUvjdKU+u9PB/TG86MDgRL87AAeLNB7g="
+}

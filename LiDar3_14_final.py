@@ -28,21 +28,21 @@ ALTO_VENTANA = 920
 PANEL_W = 360
 MAP_W = ANCHO_VENTANA - PANEL_W
 
-MARGEN = 18
-MAP_TOP = 18
-HELP_H = 165
-MAP_BOTTOM = ALTO_VENTANA - HELP_H - MARGEN
+TOOLBAR_H  = 40                      # barra fina de estado
+MARGEN     = 10
+MAP_TOP    = TOOLBAR_H + MARGEN
+MAP_BOTTOM = ALTO_VENTANA - MARGEN
 
 FPS_OBJETIVO = 30
 FPS_DIBUJO = 20
 INTERVALO_DIBUJO = 1.0 / FPS_DIBUJO
 
 # ==========================================
-# MAPA FIJO XxX m
+# MAPA FIJO 5x5 m
 # ==========================================
-MAPA_ANCHO_MM = 4000
-MAPA_ALTO_MM = 4000
-CELDA_MM = 100
+MAPA_ANCHO_MM = 5000
+MAPA_ALTO_MM = 5000
+CELDA_MM = 200
 
 GRID_COLS = MAPA_ANCHO_MM // CELDA_MM
 GRID_ROWS = MAPA_ALTO_MM // CELDA_MM
@@ -58,9 +58,9 @@ LIDAR_YAW_INICIAL_DEG = 0.0
 # GEOMETRÍA DEL ROBOT
 # Referencia = centro del LiDAR
 # ==========================================
-ROBOT_LARGO_MM = 740
+ROBOT_LARGO_MM = 650
 ROBOT_ANCHO_MM = 400
-DIST_LIDAR_FRENTE_MM = 280
+DIST_LIDAR_FRENTE_MM = 150
 DIST_LIDAR_ATRAS_MM = ROBOT_LARGO_MM - DIST_LIDAR_FRENTE_MM
 MITAD_ANCHO_MM = ROBOT_ANCHO_MM / 2
 
@@ -111,7 +111,7 @@ SEG_LINE_RESIDUAL_MM = 55.0   # residual máx RMS para considerar segmento "rect
 
 # Cono de detección frontal
 FRONT_HALF_ANGLE_DEG = 35.0   # semiángulo del cono (±35° respecto al heading)
-FRONT_MAX_DIST_MM    = 700.0  # distancia máxima dentro del cono
+FRONT_MAX_DIST_MM    = 400.0  # distancia máxima dentro del cono
 
 # Confirmación / despejado de bloqueo
 BLOCK_MIN_IRREG_HITS = 5      # hits irregulares mínimos en el cono por tick
@@ -146,7 +146,7 @@ PATRONES_CICLO   = [PATRON_NINGUNO, PATRON_MATRICIAL,
 PASO_LIMPIEZA_MM = 440   # mm  (= RADIO_LIMPIEZA_MM * 2)
 
 # Margen desde las paredes para no chocar
-MARGEN_PARED_MM  = 500
+MARGEN_PARED_MM  = 450
 
 # Colores de patrón en el panel
 COLOR_PATRON = {
@@ -155,6 +155,23 @@ COLOR_PATRON = {
     PATRON_ESPIRAL:   (160, 120, 255),
     PATRON_BOWTIE:    (255, 180,  60),
 }
+
+# ==========================================
+# REPLANNING DE LIMPIEZA
+# ==========================================
+CLEAN_THRESHOLD_DEFAULT = 90.0   # % de cobertura para considerar "limpio"
+CLEAN_THRESHOLD_STEP    =  5.0   # paso al ajustar con [ / ]
+CLEAN_THRESHOLD_MIN     = 50.0
+CLEAN_THRESHOLD_MAX     = 100.0
+
+# Bordes de suciedad para selección de patrón automático
+REPLAN_BORDER_RATIO_ESPIRAL  = 0.55  # >55% sucio en bordes → ESPIRAL
+REPLAN_ASPECT_RATIO_MATRICIAL = 1.4  # zona alargada → MATRICIAL
+
+COLOR_CLEANABLE   = (220, 235, 255)  # azul muy suave — área limpiable sin limpiar
+# COLOR_CLEAN_DONE reutiliza COLOR_CLEANED (definido en sección colores, más abajo)
+COLOR_THRESH_OK   = ( 80, 220, 130)  # verde — por encima del umbral
+COLOR_THRESH_WARN = (255, 180,  60)  # naranja — por debajo del umbral
 
 # ==========================================
 # LIDAR
@@ -171,7 +188,7 @@ LIDAR_EMA_ALPHA = 0.35
 # ==========================================
 # CONTROL MANUAL
 # ==========================================
-PWM_BASE = 90
+PWM_BASE = 100
 PWM_GIRO = 80
 PWM_STEP = 5
 PWM_MIN = 35
@@ -182,8 +199,8 @@ SIGNO_MOTOR_DER = 1
 # ==========================================
 # ACTUADORES
 # ==========================================
-NIVELES_LIMPIEZA = [0.25, 0.40, 0.60]
-RADIO_LIMPIEZA_MM = 330
+NIVELES_LIMPIEZA = [0.15, 0.40, 1.00]
+RADIO_LIMPIEZA_MM = 220
 
 # ==========================================
 # MODOS DE OPERACIÓN
@@ -204,7 +221,7 @@ COLOR_MODE_SCAN      = (255, 130,  50)   # naranja — modo scan en panel
 
 # Waypoints
 WP_RADIO_PX        = 7    # radio del círculo de cada waypoint en pantalla
-WP_REACH_MM        = 180  # distancia para considerar waypoint alcanzado
+WP_REACH_MM        = 150  # distancia para considerar waypoint alcanzado
 COLOR_RUTA_LINE    = (255, 200,  50)
 COLOR_WP_NORMAL    = (255, 160,  30)
 COLOR_WP_ACTIVE    = ( 80, 220, 255)
@@ -236,7 +253,7 @@ K_HEADING            =  1.6  # ganancia proporcional de corrección de heading
 # ==========================================
 # ALERTA DINÁMICA
 # ==========================================
-RADIO_ALERTA_DINAMICA_MM = 500.0
+RADIO_ALERTA_DINAMICA_MM = 400.0
 UMBRAL_PUNTOS_DINAMICOS = 6
 
 # ==========================================
@@ -262,6 +279,18 @@ COLOR_OK = (120, 255, 140)
 COLOR_WARN = (255, 170, 90)
 COLOR_KEYBOX = (36, 40, 54)
 COLOR_KEYBOX_BORDER = (72, 78, 96)
+
+# Toolbar
+COLOR_TOOLBAR_BG     = (22, 24, 36)
+COLOR_TOOLBAR_BORDER = (45, 50, 70)
+COLOR_TB_BTN         = (32, 36, 52)
+COLOR_TB_BTN_HOVER   = (44, 50, 72)
+COLOR_TB_BTN_ACTIVE  = (55, 90, 140)
+COLOR_TB_BTN_DANGER  = (100, 28, 28)
+COLOR_TB_BTN_OK      = (28, 80, 48)
+COLOR_TB_SEP         = (55, 62, 82)
+COLOR_TB_GROUP_LABEL = (90, 100, 125)
+COLOR_TB_KEY         = (255, 210, 80)
 
 # ==========================================
 # UTILIDADES
@@ -688,14 +717,97 @@ class GridMap:
         self.discovered = np.zeros((self.rows, self.cols), dtype=np.uint8)
         self.cleaned    = np.zeros((self.rows, self.cols), dtype=np.uint8)
         self.walls      = np.zeros((self.rows, self.cols), dtype=np.uint8)
+        self.cleanable  = np.zeros((self.rows, self.cols), dtype=np.uint8)
 
     def reset(self):
         self.discovered.fill(0)
         self.cleaned.fill(0)
-        # Las paredes NO se borran con reset general
+        # walls y cleanable NO se borran con reset general
 
     def clear_walls(self):
         self.walls.fill(0)
+        self.cleanable.fill(0)   # invalidar máscara al re-escanear
+
+    def compute_cleanable_mask(self, bbox):
+        """
+        Marca como 'cleanable' todas las celdas dentro del bbox
+        de limpieza que no son pared. Llámala tras cada escaneo F1.
+        bbox: (x_min, y_min, x_max, y_max) en mm
+        """
+        self.cleanable.fill(0)
+        if bbox is None:
+            return
+
+        x_min, y_min, x_max, y_max = bbox
+        c_min = max(0, int(x_min // self.cell_mm))
+        c_max = min(self.cols - 1, int(x_max // self.cell_mm))
+        r_min = max(0, int(y_min // self.cell_mm))
+        r_max = min(self.rows - 1, int(y_max // self.cell_mm))
+
+        for r in range(r_min, r_max + 1):
+            for c in range(c_min, c_max + 1):
+                if not self.walls[r, c]:
+                    self.cleanable[r, c] = 1
+
+    def has_cleanable_mask(self):
+        return bool(np.any(self.cleanable))
+
+    def get_cleanable_count(self):
+        return int(np.sum(self.cleanable))
+
+    def get_clean_coverage_pct(self):
+        """
+        % de celdas limpias respecto al área limpiable total.
+        Retorna 0.0 si no hay máscara cleanable.
+        """
+        total = int(np.sum(self.cleanable))
+        if total == 0:
+            return 0.0
+        cleaned_in_area = int(np.sum(self.cleaned & self.cleanable))
+        return 100.0 * cleaned_in_area / total
+
+    def get_uncleaned_cell_count(self):
+        """Celdas limpiabes que todavía no han sido limpiadas."""
+        return int(np.sum(self.cleanable & (1 - self.cleaned)))
+
+    def get_uncleaned_bbox(self):
+        """
+        Bounding box de las celdas cleanable que aún no están limpias.
+        Retorna (x_min, y_min, x_max, y_max) en mm, o None si todo limpio.
+        """
+        dirty = self.cleanable & (1 - self.cleaned)   # (rows, cols)
+        idxs  = np.argwhere(dirty)
+        if len(idxs) == 0:
+            return None
+
+        r_min = int(idxs[:, 0].min())
+        r_max = int(idxs[:, 0].max())
+        c_min = int(idxs[:, 1].min())
+        c_max = int(idxs[:, 1].max())
+
+        # Convertir a mm con margen interno para no ir al filo de celdas
+        x_min = c_min * self.cell_mm + MARGEN_PARED_MM
+        y_min = r_min * self.cell_mm + MARGEN_PARED_MM
+        x_max = (c_max + 1) * self.cell_mm - MARGEN_PARED_MM
+        y_max = (r_max + 1) * self.cell_mm - MARGEN_PARED_MM
+
+        if x_min >= x_max or y_min >= y_max:
+            return None
+
+        return (x_min, y_min, x_max, y_max)
+
+    def get_uncleaned_cells_array(self):
+        """
+        Retorna array numpy (N×2) con centros [x_mm, y_mm] de celdas
+        cleanable no limpias. Usado por select_best_pattern().
+        """
+        dirty = self.cleanable & (1 - self.cleaned)
+        idxs  = np.argwhere(dirty)
+        if len(idxs) == 0:
+            return None
+        xs = (idxs[:, 1] + 0.5) * self.cell_mm
+        ys = (idxs[:, 0] + 0.5) * self.cell_mm
+        return np.column_stack([xs, ys]).astype(np.float32)
 
     def has_wall_map(self):
         """True si ya se hizo al menos un escaneo de paredes."""
@@ -858,6 +970,8 @@ class GridMap:
                     pygame.draw.rect(screen, COLOR_WALL, (rx, ry, cw, ch))
                 elif self.cleaned[r, c]:
                     pygame.draw.rect(screen, COLOR_CLEANED, (rx, ry, cw, ch))
+                elif self.cleanable[r, c]:
+                    pygame.draw.rect(screen, COLOR_CLEANABLE, (rx, ry, cw, ch))
                 elif self.discovered[r, c]:
                     pygame.draw.rect(screen, COLOR_DISCOVERED, (rx, ry, cw, ch))
                 # else: COLOR_UNDISCOVERED ya pintado arriba
@@ -904,9 +1018,16 @@ class GridMap:
         hsx, hsy = self.world_to_screen(area_rect, hx, hy)
         pygame.draw.line(screen, COLOR_HEADING, (int(sx), int(sy)), (int(hsx), int(hsy)), 3)
 
-        rx, _ = self.world_to_screen(area_rect, lidar_x_mm + RADIO_ALERTA_DINAMICA_MM, lidar_y_mm)
-        radius_px = int(abs(rx - sx))
-        pygame.draw.circle(screen, COLOR_ALERT if alert else (135, 135, 150), (int(sx), int(sy)), radius_px, 1)
+        # Alert circle centrado en el cuerpo del robot (no en el LiDAR)
+        # El centro geométrico del cuerpo está a (FRENTE - ATRAS)/2 desde el LiDAR
+        body_offset = (DIST_LIDAR_FRENTE_MM - DIST_LIDAR_ATRAS_MM) / 2.0
+        body_cx = lidar_x_mm + body_offset * math.cos(yaw_rad)
+        body_cy = lidar_y_mm + body_offset * math.sin(yaw_rad)
+        bsx, bsy = self.world_to_screen(area_rect, body_cx, body_cy)
+        rx, _ = self.world_to_screen(area_rect, body_cx + RADIO_ALERTA_DINAMICA_MM, body_cy)
+        radius_px = int(abs(rx - bsx))
+        pygame.draw.circle(screen, COLOR_ALERT if alert else (135, 135, 150),
+                           (int(bsx), int(bsy)), radius_px, 1)
 
     def draw_lidar_hits(self, screen, area_rect, points_xy_mm):
         for x_mm, y_mm in points_xy_mm:
@@ -1067,6 +1188,17 @@ class GridMap:
 # ==========================================
 # RESET
 # ==========================================
+def do_replan(grid_map):
+    """
+    Ejecuta el replanning: genera nueva ruta sobre áreas sin limpiar.
+    Retorna (waypoints, patron_elegido, replan_succeeded).
+    """
+    wps, pat = replan_cleaning(grid_map)
+    if not wps:
+        return [], PATRON_NINGUNO, False
+    return wps, pat, True
+
+
 def reset_runtime_state(grid_map, lidar_mem, arduino):
     grid_map.reset()
     lidar_mem.reset()
@@ -1237,100 +1369,257 @@ def draw_panel(screen, font, small, state):
     }
     fsm_color = FSM_COLORS.get(fsm, COLOR_SUBTEXT)
 
-    skipped_n   = state.get("skipped_count", 0)
-    patron_now  = state.get("patron_actual", PATRON_NINGUNO)
-    pat_color   = COLOR_PATRON.get(patron_now, COLOR_SUBTEXT)
+    skipped_n      = state.get("skipped_count", 0)
+    patron_now     = state.get("patron_actual", PATRON_NINGUNO)
+    pat_color      = COLOR_PATRON.get(patron_now, COLOR_SUBTEXT)
+    coverage       = state.get("clean_coverage", 0.0)
+    threshold      = state.get("clean_threshold", CLEAN_THRESHOLD_DEFAULT)
+    replan_n       = state.get("replan_count", 0)
+    clean_done     = state.get("cleaning_complete", False)
+    cleanable_n    = state.get("cleanable_count", 0)
+    uncleaned_n    = state.get("uncleaned_count", 0)
 
-    card = draw_card(screen, cx, y, cw, 152, "RUTA / PATRÓN", font, small)
+    card = draw_card(screen, cx, y, cw, 230, "RUTA / LIMPIEZA", font, small)
 
-    # Patrón activo
+    # ── Patrón y estado FSM ─────────────────────────────
+    screen.blit(small.render(f"Patrón: {patron_now}", True, pat_color),
+                (card.x + 12, card.y + 38))
     screen.blit(
-        small.render(f"Patrón:    {patron_now}", True, pat_color),
-        (card.x + 12, card.y + 40)
-    )
-    screen.blit(
-        small.render(f"Estado:    {fsm}", True,
+        small.render(f"Estado: {fsm}", True,
                      fsm_color if modo_now == MODE_RUTA else COLOR_SUBTEXT),
-        (card.x + 12, card.y + 58)
-    )
-    screen.blit(
-        small.render(f"Waypoints: {n_wps}  saltados: {skipped_n}",
-                     True, COLOR_WARN if skipped_n > 0 else COLOR_SUBTEXT),
-        (card.x + 12, card.y + 76)
-    )
+        (card.x + 12, card.y + 54))
     screen.blit(
         small.render(
-            f"Activo:    {wp_idx + 1 if n_wps > 0 else '-'} / {n_wps if n_wps > 0 else '-'}",
-            True, COLOR_WP_ACTIVE if modo_now == MODE_RUTA else COLOR_SUBTEXT
-        ),
-        (card.x + 12, card.y + 94)
-    )
-    screen.blit(
-        small.render("[F2] Ciclar patrón  (requiere F1 previo)", True, COLOR_SUBTEXT),
-        (card.x + 12, card.y + 112)
-    )
-    screen.blit(
-        small.render("[Click] WP manual  [Tab] Activar ruta", True, COLOR_SUBTEXT),
-        (card.x + 12, card.y + 130)
-    )
+            f"WP: {wp_idx+1 if n_wps>0 else '-'}/{n_wps if n_wps>0 else '-'}"
+            f"  saltados:{skipped_n}",
+            True, COLOR_WARN if skipped_n > 0 else COLOR_SUBTEXT),
+        (card.x + 12, card.y + 70))
+
+    # ── Barra de cobertura ──────────────────────────────
+    bar_x  = card.x + 12
+    bar_y  = card.y + 92
+    bar_w  = cw - 24
+    bar_h  = 14
+    cover_f = clamp(coverage / 100.0, 0.0, 1.0)
+    thresh_f = clamp(threshold / 100.0, 0.0, 1.0)
+
+    # Fondo
+    pygame.draw.rect(screen, (35, 38, 52), (bar_x, bar_y, bar_w, bar_h), border_radius=4)
+    # Relleno de cobertura
+    fill_w = int(bar_w * cover_f)
+    fill_col = COLOR_THRESH_OK if coverage >= threshold else COLOR_THRESH_WARN
+    if fill_w > 0:
+        pygame.draw.rect(screen, fill_col, (bar_x, bar_y, fill_w, bar_h), border_radius=4)
+    # Línea de umbral
+    thresh_x = bar_x + int(bar_w * thresh_f)
+    pygame.draw.line(screen, (255, 255, 255),
+                     (thresh_x, bar_y - 2), (thresh_x, bar_y + bar_h + 2), 2)
+    # Borde
+    pygame.draw.rect(screen, COLOR_BORDER, (bar_x, bar_y, bar_w, bar_h), 1, border_radius=4)
+
+    # Texto de cobertura
+    cov_txt = "✓ COMPLETA" if clean_done else f"{coverage:.1f}%"
+    cov_col = COLOR_THRESH_OK if coverage >= threshold else COLOR_THRESH_WARN
+    screen.blit(small.render(
+        f"Cobertura: {cov_txt}  (umbral {threshold:.0f}%)", True, cov_col),
+        (bar_x, bar_y + bar_h + 4))
+
+    # Celdas
+    screen.blit(small.render(
+        f"Limpiabl.: {cleanable_n}  Sucias: {uncleaned_n}",
+        True, COLOR_SUBTEXT), (bar_x, bar_y + bar_h + 20))
+
+    # Replanning
+    rp_col = COLOR_WARN if replan_n > 0 else COLOR_SUBTEXT
+    screen.blit(small.render(f"Replans: {replan_n}",
+        True, rp_col), (bar_x, bar_y + bar_h + 36))
+
+    # Controles
+    screen.blit(small.render(
+        "[F2] Patrón  [F3] Replan  [ ] Umbral",
+        True, COLOR_SUBTEXT), (bar_x, bar_y + bar_h + 54))
+    screen.blit(small.render(
+        "[Tab] Activar ruta  [Click] WP manual",
+        True, COLOR_SUBTEXT), (bar_x, bar_y + bar_h + 70))
 
 
-def draw_help_bar(screen, font, small, state, area_rect):
-    x, y, w, h = area_rect
-    pygame.draw.rect(screen, COLOR_CARD, area_rect, border_radius=12)
-    pygame.draw.rect(screen, COLOR_BORDER, area_rect, 1, border_radius=12)
+# Rect fijo del botón Controls (guardado entre frames)
+_CTRL_BTN_RECT = None
 
-    screen.blit(font.render("CONTROLES", True, COLOR_TEXT), (x + 14, y + 10))
-    screen.blit(small.render("Se reordenaron para que siempre queden visibles en pantalla.", True, COLOR_SUBTEXT), (x + 14, y + 36))
 
+def draw_toolbar(screen, font, small, state, dropdown_open=False):
+    """Barra delgada de estado + botón Controls ▾ que abre el dropdown."""
+    global _CTRL_BTN_RECT
+    tw = MAP_W
+    th = TOOLBAR_H
+    pygame.draw.rect(screen, COLOR_TOOLBAR_BG, (0, 0, tw, th))
+    pygame.draw.line(screen, COLOR_TOOLBAR_BORDER, (0, th-1), (tw, th-1), 1)
+
+    modo       = state.get("modo", MODE_MANUAL)
+    fsm        = state.get("fsm_state", FSM_IDLE)
+    coverage   = state.get("clean_coverage", 0.0)
+    threshold  = state.get("clean_threshold", CLEAN_THRESHOLD_DEFAULT)
+    patron_now = state.get("patron_actual", PATRON_NINGUNO)
+    enc_ok     = state.get("enc_available", False)
+    has_walls  = state.get("has_wall_map", False)
+    blocked    = state.get("frontal_blocked", False)
+    clean_done = state.get("cleaning_complete", False)
+    cy = th // 2
+
+    def pill(text, color, bg, x):
+        surf = small.render(text, True, color)
+        w = surf.get_rect().width + 14
+        h = th - 8
+        r = pygame.Rect(x, (th-h)//2, w, h)
+        pygame.draw.rect(screen, bg, r, border_radius=5)
+        pygame.draw.rect(screen, COLOR_TOOLBAR_BORDER, r, 1, border_radius=5)
+        screen.blit(surf, (x+7, cy - surf.get_rect().height//2))
+        return x + w + 5
+
+    cx = 8
+
+    # Mode pill
+    if   modo == MODE_SCAN: m_col, m_bg = COLOR_MODE_SCAN,   (30,45,70)
+    elif modo == MODE_RUTA: m_col, m_bg = COLOR_MODE_RUTA,   (20,35,65)
+    else:                   m_col, m_bg = COLOR_MODE_MANUAL, (22,40,28)
+    cx = pill(f"  {modo}  ", m_col, m_bg, cx)
+
+    # FSM pill (RUTA only)
+    if modo == MODE_RUTA:
+        fc = {FSM_ALIGN:(255,220,60), FSM_ADVANCE:(80,220,255),
+              FSM_BLOCKED:(255,70,70), FSM_IDLE:COLOR_SUBTEXT,
+              FSM_WP_REACHED:(120,255,140)}.get(fsm, COLOR_SUBTEXT)
+        cx = pill(fsm, fc, (22,24,38), cx)
+
+    pygame.draw.line(screen, COLOR_TB_SEP, (cx,6), (cx,th-6), 1); cx += 8
+
+    # Coverage bar
+    if has_walls:
+        bar_w = 100; bar_h = 10
+        bx, by = cx, cy - bar_h//2
+        pygame.draw.rect(screen, (35,38,52), (bx,by,bar_w,bar_h), border_radius=3)
+        fw = int(bar_w * min(coverage/100.0, 1.0))
+        fc = COLOR_THRESH_OK if coverage >= threshold else COLOR_THRESH_WARN
+        if fw > 0: pygame.draw.rect(screen, fc, (bx,by,fw,bar_h), border_radius=3)
+        tx = bx + int(bar_w * threshold/100.0)
+        pygame.draw.line(screen, (255,255,255), (tx,by-1), (tx,by+bar_h+1), 1)
+        pygame.draw.rect(screen, COLOR_TOOLBAR_BORDER, (bx,by,bar_w,bar_h), 1, border_radius=3)
+        cx += bar_w + 4
+        cov_txt = "✓ DONE" if clean_done else f"{coverage:.0f}%"
+        cs = small.render(cov_txt, True, fc)
+        screen.blit(cs, (cx, cy - cs.get_rect().height//2)); cx += cs.get_rect().width + 8
+        pygame.draw.line(screen, COLOR_TB_SEP, (cx,6), (cx,th-6), 1); cx += 8
+
+    # Patron pill
+    if patron_now != PATRON_NINGUNO:
+        ps = {"MATRICIAL":"≡≡","ESPIRAL":"◎","BOW-TIE":"✕"}.get(patron_now, patron_now)
+        pc = COLOR_PATRON.get(patron_now, COLOR_SUBTEXT)
+        cx = pill(f"{ps} {patron_now}", pc, (22,24,38), cx)
+
+    # Sensor source pill
+    if has_walls and enc_ok:   src, sc = "MATCH+ENC", (80,160,255)
+    elif enc_ok:               src, sc = "ENCODERS",  COLOR_OK
+    else:                      src, sc = "NO SENSORS",(140,140,150)
+    cx = pill(src, sc, (22,24,38), cx)
+
+    if blocked: cx = pill("⬛ BLOCKED", COLOR_ALERT, (60,18,18), cx)
+
+    # Controls button — right side
+    btn_txt  = "⌨  Controls  ▾" if not dropdown_open else "⌨  Controls  ▴"
+    bs = small.render(btn_txt, True, COLOR_TEXT)
+    bw = bs.get_rect().width + 20
+    bh = th - 8
+    bx = tw - bw - 8
+    by = (th - bh) // 2
+    bg = COLOR_TB_BTN_ACTIVE if dropdown_open else COLOR_TB_BTN
+    br = pygame.Rect(bx, by, bw, bh)
+    pygame.draw.rect(screen, bg, br, border_radius=6)
+    bc = (100,160,255) if dropdown_open else COLOR_TOOLBAR_BORDER
+    pygame.draw.rect(screen, bc, br, 1, border_radius=6)
+    screen.blit(bs, (bx+10, cy - bs.get_rect().height//2))
+    _CTRL_BTN_RECT = br
+
+
+def draw_controls_dropdown(screen, small):
+    """Dropdown flotante con atajos y leyenda de colores."""
     items = [
-        ("F1",        "Escanear paredes"),
-        ("F2",        "Ciclar patrón limpieza"),
-        ("Tab",       "Manual / Ruta"),
-        ("W / S",     "Avanzar / reversa"),
-        ("A / D",     "Girar"),
-        ("R",         "Toggle limpieza"),
-        ("O",         "Toggle compresor"),
-        ("V",         "Cambiar potencia"),
-        ("1 / 2",     "PWM avance - / +"),
-        ("3 / 4",     "PWM giro - / +"),
-        ("P",         "Reset mapa / yaw"),
-        ("X",         "Stop total"),
-        ("BkSp",      "Limpiar waypoints"),
+        ("F1","Scan paredes"),     ("F2","Ciclar patrón"),
+        ("F3","Replan forzado"),   ("[ ]","Umbral cobertura ±"),
+        ("Tab","Manual / Ruta"),   ("W/S","Adelante / atrás"),
+        ("A/D","Girar"),           ("R","Toggle limpieza"),
+        ("O","Toggle compresor"),  ("V","Cambiar potencia"),
+        ("1/2","PWM avance ±"),    ("3/4","PWM giro ±"),
+        ("E","Exportar mapa PNG"), ("P","Reset mapa/yaw"),
+        ("BkSp","Limpiar waypoints"),("X","STOP total"),
+        ("Click","Añadir waypoint"),("RClick","Borrar último WP"),
     ]
+    col_w = 190; row_h = 22; cols = 2
+    rows  = math.ceil(len(items)/cols)
+    pad   = 12
+    dw    = col_w*cols + pad*2
+    dh    = rows*row_h + pad*2 + 26
+    dx    = MAP_W - dw - 4
+    dy    = TOOLBAR_H
 
-    cols = 3
-    inner_x = x + 14
-    inner_y = y + 62
-    gap_x = 12
-    gap_y = 10
-    box_w = (w - 28 - gap_x * (cols - 1)) // cols
-    box_h = 38
+    pygame.draw.rect(screen, (18,20,32), (dx,dy,dw,dh), border_radius=8)
+    pygame.draw.rect(screen, COLOR_TOOLBAR_BORDER, (dx,dy,dw,dh), 1, border_radius=8)
 
-    for idx, (key_txt, desc) in enumerate(items):
-        col = idx % cols
-        row = idx // cols
-        bx = inner_x + col * (box_w + gap_x)
-        by = inner_y + row * (box_h + gap_y)
-        rect = pygame.Rect(bx, by, box_w, box_h)
-        pygame.draw.rect(screen, COLOR_KEYBOX, rect, border_radius=10)
-        pygame.draw.rect(screen, COLOR_KEYBOX_BORDER, rect, 1, border_radius=10)
-        screen.blit(font.render(key_txt, True, (255, 214, 120)), (bx + 10, by + 6))
-        screen.blit(small.render(desc, True, COLOR_SUBTEXT), (bx + 82, by + 10))
+    legend = [(COLOR_UNDISCOVERED,"Base"),(COLOR_CLEANABLE,"Limpiable"),
+              (COLOR_CLEANED,"Limpio"),(COLOR_WALL,"Pared"),(COLOR_LIDAR,"LiDAR")]
+    lx = dx+pad; ly = dy+pad
+    for col_sw, lbl in legend:
+        pygame.draw.rect(screen, col_sw, (lx, ly+2, 10, 10))
+        pygame.draw.rect(screen, COLOR_BORDER, (lx, ly+2, 10, 10), 1)
+        ls = small.render(lbl, True, COLOR_SUBTEXT)
+        screen.blit(ls, (lx+13, ly)); lx += 13+ls.get_rect().width+8
+    pygame.draw.line(screen, COLOR_TB_SEP, (dx+pad,dy+pad+18), (dx+dw-pad,dy+pad+18), 1)
 
-    legend_x = x + w - 205
-    legend_y = y + 10
-    legend_items = [
-        (COLOR_UNDISCOVERED, "Mapa base visible"),
-        (COLOR_DISCOVERED, "Descubierto"),
-        (COLOR_CLEANED, "Limpio"),
-        (COLOR_LIDAR, "Puntos LiDAR"),
-    ]
-    for i, (col, label) in enumerate(legend_items):
-        ly = legend_y + i * 18
-        pygame.draw.rect(screen, col, (legend_x, ly + 2, 12, 12))
-        pygame.draw.rect(screen, COLOR_BORDER, (legend_x, ly + 2, 12, 12), 1)
-        screen.blit(small.render(label, True, COLOR_SUBTEXT), (legend_x + 18, ly))
+    for i, (key, desc) in enumerate(items):
+        col = i % cols; row = i // cols
+        ix = dx+pad+col*col_w; iy = dy+pad+26+row*row_h
+        screen.blit(small.render(key,  True, COLOR_TB_KEY),    (ix,    iy))
+        screen.blit(small.render(desc, True, COLOR_SUBTEXT),   (ix+52, iy))
+
+
+def export_cleaning_map(grid_map, coverage_pct, base_path="."):
+    """Exporta el mapa de limpieza como PNG con leyenda y cobertura."""
+    import os, datetime
+    EXPORT_CELL = 8; LEG_H = 60
+    IMG_W = grid_map.cols * EXPORT_CELL
+    IMG_H = grid_map.rows * EXPORT_CELL + LEG_H
+    surf = pygame.Surface((IMG_W, IMG_H))
+    surf.fill((10,10,18))
+    for r in range(grid_map.rows):
+        for c in range(grid_map.cols):
+            px = c * EXPORT_CELL
+            py = (grid_map.rows-1-r) * EXPORT_CELL
+            if   grid_map.walls[r,c]:     col = COLOR_WALL
+            elif grid_map.cleaned[r,c]:   col = COLOR_CLEANED
+            elif grid_map.cleanable[r,c]: col = COLOR_CLEANABLE
+            elif grid_map.discovered[r,c]:col = COLOR_DISCOVERED
+            else:                         col = COLOR_UNDISCOVERED
+            pygame.draw.rect(surf, col, (px, py, EXPORT_CELL, EXPORT_CELL))
+    ly = grid_map.rows * EXPORT_CELL
+    pygame.draw.rect(surf, (18,20,32), (0,ly,IMG_W,LEG_H))
+    try:    ef = pygame.font.SysFont("Consolas", 13)
+    except: ef = pygame.font.SysFont(None, 13)
+    legend = [(COLOR_UNDISCOVERED,"Sin desc."),(COLOR_CLEANABLE,"Limpiable"),
+              (COLOR_CLEANED,"Limpiado"),(COLOR_WALL,"Pared"),(COLOR_DISCOVERED,"Descub.")]
+    lx = 8
+    for col_sw, lbl in legend:
+        pygame.draw.rect(surf, col_sw, (lx,ly+8,14,14))
+        pygame.draw.rect(surf, (80,80,100),(lx,ly+8,14,14),1)
+        ls = ef.render(lbl, True, (200,200,215)); surf.blit(ls,(lx+18,ly+8))
+        lx += 18+ls.get_rect().width+14
+    fc = COLOR_THRESH_OK if coverage_pct >= 80 else COLOR_THRESH_WARN
+    cs = ef.render(f"Cobertura: {coverage_pct:.1f}%", True, fc)
+    surf.blit(cs, (IMG_W-cs.get_rect().width-10, ly+8))
+    ts = ef.render(datetime.datetime.now().strftime("Exportado: %Y-%m-%d %H:%M:%S"),
+                   True, (100,105,120))
+    surf.blit(ts, (8, ly+30))
+    fname = os.path.join(base_path, f"cleaning_map_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+    pygame.image.save(surf, fname)
+    return fname
 
 
 def get_map_rect():
@@ -1859,6 +2148,114 @@ def generate_pattern(patron, grid_map):
     return []
 
 
+# ==========================================
+# REPLANNING INTELIGENTE DE LIMPIEZA
+# ==========================================
+
+def select_best_pattern(grid_map):
+    """
+    Analiza la distribución de celdas sin limpiar y elige el patrón
+    más adecuado para limpiarlas eficientemente.
+
+    Lógica de selección:
+      1. ESPIRAL  → suciedad concentrada en los bordes del área limpiable
+                    (border_ratio > REPLAN_BORDER_RATIO_ESPIRAL)
+      2. MATRICIAL → zona sucia alargada (aspect_ratio > umbral)
+      3. BOWTIE   → suciedad dispersa por toda el área
+
+    Retorna el nombre del patrón elegido.
+    """
+    cells = grid_map.get_uncleaned_cells_array()
+    if cells is None or len(cells) < 4:
+        return PATRON_MATRICIAL   # default seguro
+
+    xs = cells[:, 0]
+    ys = cells[:, 1]
+
+    x_min, x_max = float(xs.min()), float(xs.max())
+    y_min, y_max = float(ys.min()), float(ys.max())
+    width  = x_max - x_min
+    height = y_max - y_min
+
+    # ── Aspect ratio de la zona sucia ────────────────────────────
+    if height < 1.0:
+        aspect = 99.0
+    else:
+        aspect = width / height
+
+    # ── Border ratio: ¿cuántas celdas sucias están cerca del borde
+    #    de la zona limpiable? ─────────────────────────────────────
+    cleanable_idxs = np.argwhere(grid_map.cleanable)
+    if len(cleanable_idxs) > 0:
+        cl_r_min = int(cleanable_idxs[:, 0].min())
+        cl_r_max = int(cleanable_idxs[:, 0].max())
+        cl_c_min = int(cleanable_idxs[:, 1].min())
+        cl_c_max = int(cleanable_idxs[:, 1].max())
+
+        # Profundidad de "borde" = 12% del tamaño del área limpiable
+        r_span = cl_r_max - cl_r_min + 1
+        c_span = cl_c_max - cl_c_min + 1
+        border_depth = max(2, int(min(r_span, c_span) * 0.12))
+        dirty = grid_map.cleanable & (1 - grid_map.cleaned)
+        border_mask = np.zeros_like(dirty)
+        border_mask[cl_r_min:cl_r_min+border_depth, :] = 1
+        border_mask[cl_r_max-border_depth+1:cl_r_max+1, :] = 1
+        border_mask[:, cl_c_min:cl_c_min+border_depth] = 1
+        border_mask[:, cl_c_max-border_depth+1:cl_c_max+1] = 1
+
+        n_border = int(np.sum(dirty & border_mask))
+        n_total  = int(np.sum(dirty))
+        border_ratio = n_border / n_total if n_total > 0 else 0.0
+    else:
+        border_ratio = 0.0
+
+    # ── Decisión ─────────────────────────────────────────────────
+    if border_ratio >= REPLAN_BORDER_RATIO_ESPIRAL:
+        return PATRON_ESPIRAL
+    elif aspect >= REPLAN_ASPECT_RATIO_MATRICIAL or aspect <= (1.0 / REPLAN_ASPECT_RATIO_MATRICIAL):
+        return PATRON_MATRICIAL
+    else:
+        return PATRON_BOWTIE
+
+
+def replan_cleaning(grid_map):
+    """
+    Genera una nueva ruta de limpieza enfocada en las áreas sin limpiar.
+
+    1. Obtiene el bbox ajustado de celdas sucias (más pequeño que el corral)
+    2. Selecciona el mejor patrón para esa distribución
+    3. Genera los waypoints dentro de ese bbox
+
+    Retorna (waypoints, patron_elegido) o ([], PATRON_NINGUNO) si todo limpio.
+    """
+    if not grid_map.has_cleanable_mask():
+        return [], PATRON_NINGUNO
+
+    uncleaned_count = grid_map.get_uncleaned_cell_count()
+    if uncleaned_count == 0:
+        return [], PATRON_NINGUNO
+
+    # Elegir patrón según distribución de suciedad
+    patron = select_best_pattern(grid_map)
+
+    # Obtener bbox de zona sucia (puede ser más pequeño que el corral entero)
+    dirty_bbox = grid_map.get_uncleaned_bbox()
+    if dirty_bbox is None:
+        return [], PATRON_NINGUNO
+
+    # Generar waypoints dentro del bbox sucio
+    if patron == PATRON_MATRICIAL:
+        wps = generate_matricial(dirty_bbox)
+    elif patron == PATRON_ESPIRAL:
+        wps = generate_espiral(dirty_bbox)
+    elif patron == PATRON_BOWTIE:
+        wps = generate_bowtie(dirty_bbox)
+    else:
+        wps = generate_matricial(dirty_bbox)
+
+    return wps, patron
+
+
 def follow_route_step(robot_x, robot_y, yaw_deg,
                       waypoints, wp_idx, fsm_state,
                       dyn_alert):
@@ -2047,13 +2444,22 @@ def main():
 
     # ── Patrones de limpieza ─────────────────────────────
     patron_actual       = PATRON_NINGUNO
-    patron_idx          = 0   # índice en PATRONES_CICLO
+    patron_idx          = 0
+
+    # ── Replanning de limpieza ───────────────────────────
+    clean_threshold     = CLEAN_THRESHOLD_DEFAULT
+    replan_count        = 0
+    cleaning_complete   = False
+
+    # ── UI estado ────────────────────────────────────────
+    dropdown_open       = False   # Controls dropdown visible
+    last_export_file    = None    # último archivo PNG exportado   # True cuando coverage >= threshold
 
     last_render_time = 0.0
     robot_moving     = False   # inicializar antes del primer render
 
     map_rect = get_map_rect()
-    help_rect = (MARGEN, ALTO_VENTANA - HELP_H - MARGEN, MAP_W - 2 * MARGEN, HELP_H)
+    # No help_rect needed — toolbar is always drawn at y=0
 
     try:
         while True:
@@ -2068,7 +2474,13 @@ def main():
                     raise KeyboardInterrupt
 
                 if e.type == pygame.KEYDOWN:
-                    if e.key == pygame.K_F1:
+                    if e.key == pygame.K_e:
+                        # Exportar mapa PNG
+                        coverage_now = grid_map.get_clean_coverage_pct()
+                        last_export_file = export_cleaning_map(grid_map, coverage_now)
+                        print(f"Mapa exportado: {last_export_file}")
+
+                    elif e.key == pygame.K_F1:
                         # Iniciar (o re-iniciar) escaneo de paredes
                         if modo != MODE_SCAN:
                             grid_map.clear_walls()
@@ -2083,7 +2495,7 @@ def main():
                     elif e.key == pygame.K_F2:
                         # Ciclar patrón de limpieza y generar waypoints
                         if grid_map.has_wall_map() and modo != MODE_SCAN:
-                            patron_idx  = (patron_idx + 1) % len(PATRONES_CICLO)
+                            patron_idx    = (patron_idx + 1) % len(PATRONES_CICLO)
                             patron_actual = PATRONES_CICLO[patron_idx]
                             if patron_actual != PATRON_NINGUNO:
                                 nuevos_wps = generate_pattern(patron_actual, grid_map)
@@ -2093,17 +2505,43 @@ def main():
                                     skipped_wp_indices = set()
                                     path_check_counter = 0
                                     fsm_state          = FSM_IDLE
-                                    # Asegurarse de estar en MANUAL hasta que
-                                    # el operador pulse Tab para activar
+                                    cleaning_complete  = False
                                     if modo == MODE_RUTA:
                                         modo = MODE_MANUAL
                                         pl, pr = 0.0, 0.0
                                         arduino.send_command(0, 0, 0, 0)
                             else:
-                                # PATRON_NINGUNO → limpiar waypoints
                                 ruta_waypoints     = []
                                 waypoint_idx       = 0
                                 skipped_wp_indices = set()
+
+                    elif e.key == pygame.K_F3:
+                        # Forzar replanning inmediato
+                        if grid_map.has_cleanable_mask() and modo != MODE_SCAN:
+                            wps, pat, ok = do_replan(grid_map)
+                            if ok:
+                                ruta_waypoints     = wps
+                                patron_actual      = pat
+                                waypoint_idx       = 0
+                                skipped_wp_indices = set()
+                                path_check_counter = 0
+                                fsm_state          = FSM_IDLE
+                                replan_count      += 1
+                                cleaning_complete  = False
+                                if modo == MODE_RUTA:
+                                    modo = MODE_MANUAL
+                                    pl, pr = 0.0, 0.0
+                                    arduino.send_command(0, 0, 0, 0)
+
+                    elif e.key == pygame.K_LEFTBRACKET:
+                        # Bajar umbral de limpieza
+                        clean_threshold = max(CLEAN_THRESHOLD_MIN,
+                                              clean_threshold - CLEAN_THRESHOLD_STEP)
+                    elif e.key == pygame.K_RIGHTBRACKET:
+                        # Subir umbral de limpieza
+                        clean_threshold = min(CLEAN_THRESHOLD_MAX,
+                                              clean_threshold + CLEAN_THRESHOLD_STEP)
+
                     elif e.key == pygame.K_TAB:
                         modo = MODE_RUTA if modo == MODE_MANUAL else MODE_MANUAL
                         if modo == MODE_RUTA:
@@ -2157,22 +2595,29 @@ def main():
                         # Nota: las paredes NO se borran con P
                         # Para re-escanear paredes usar F1
 
-                # ── Click del mouse para gestionar waypoints ──────────
+                # ── Click del mouse ───────────────────────────────────
                 if e.type == pygame.MOUSEBUTTONDOWN:
                     mx, my = e.pos
-                    if grid_map.is_inside_map_rect(map_rect, mx, my):
-                        if e.button == 1:   # click izquierdo → añadir
-                            wx, wy = grid_map.screen_to_world(map_rect, mx, my)
-                            wx = clamp(wx, 0.0, float(MAPA_ANCHO_MM))
-                            wy = clamp(wy, 0.0, float(MAPA_ALTO_MM))
-                            # Snap a celda libre si cayó en pared
-                            wx, wy = grid_map.nearest_free_cell_mm(wx, wy)
-                            ruta_waypoints.append((wx, wy))
-                        elif e.button == 3: # click derecho → borrar último
-                            if ruta_waypoints:
-                                ruta_waypoints.pop()
-                                waypoint_idx = clamp(waypoint_idx, 0,
-                                    max(0, len(ruta_waypoints) - 1))
+                    # Toggle Controls dropdown
+                    if _CTRL_BTN_RECT and _CTRL_BTN_RECT.collidepoint(mx, my):
+                        dropdown_open = not dropdown_open
+                    else:
+                        # Close dropdown on any click outside button
+                        if dropdown_open and my > TOOLBAR_H:
+                            dropdown_open = False
+                        # Waypoint clicks (only on map area, not toolbar)
+                        if my > TOOLBAR_H and grid_map.is_inside_map_rect(map_rect, mx, my):
+                            if e.button == 1:   # click izquierdo → añadir
+                                wx, wy = grid_map.screen_to_world(map_rect, mx, my)
+                                wx = clamp(wx, 0.0, float(MAPA_ANCHO_MM))
+                                wy = clamp(wy, 0.0, float(MAPA_ALTO_MM))
+                                wx, wy = grid_map.nearest_free_cell_mm(wx, wy)
+                                ruta_waypoints.append((wx, wy))
+                            elif e.button == 3: # click derecho → borrar último
+                                if ruta_waypoints:
+                                    ruta_waypoints.pop()
+                                    waypoint_idx = clamp(waypoint_idx, 0,
+                                        max(0, len(ruta_waypoints) - 1))
 
             # ── Pipeline de sensores ───────────────────────────────
             yaw_deg   = LIDAR_YAW_INICIAL_DEG + arduino.get_yaw()
@@ -2236,6 +2681,9 @@ def main():
                     for r, c in wall_cells:
                         grid_map.walls[r, c] = 1
                     wall_centers_xy = grid_map.get_wall_centers_xy()
+                    # Computar máscara de área limpiable (post-scan)
+                    _bbox = get_cleaning_bbox(grid_map)
+                    grid_map.compute_cleanable_mask(_bbox)
                     modo = MODE_MANUAL
                     scan_start_time = None
 
@@ -2251,10 +2699,33 @@ def main():
                 )
 
                 if fsm_state == FSM_ROUTE_DONE:
-                    modo      = MODE_MANUAL
-                    fsm_state = FSM_IDLE
-                    pl, pr    = 0.0, 0.0
-                    arduino.send_command(0, 0, 0, 0)
+                    coverage = grid_map.get_clean_coverage_pct()
+                    if coverage >= clean_threshold:
+                        # Limpieza completa — volver a MANUAL
+                        cleaning_complete = True
+                        modo      = MODE_MANUAL
+                        fsm_state = FSM_IDLE
+                        pl, pr    = 0.0, 0.0
+                        arduino.send_command(0, 0, 0, 0)
+                    else:
+                        # Cobertura insuficiente → replan automático
+                        wps, pat, ok = do_replan(grid_map)
+                        if ok:
+                            ruta_waypoints     = wps
+                            patron_actual      = pat
+                            waypoint_idx       = 0
+                            skipped_wp_indices = set()
+                            path_check_counter = 0
+                            fsm_state          = FSM_IDLE
+                            replan_count      += 1
+                            # Continuar en modo RUTA directamente
+                        else:
+                            # No hay más zonas sucias accesibles
+                            cleaning_complete = True
+                            modo      = MODE_MANUAL
+                            fsm_state = FSM_IDLE
+                            pl, pr    = 0.0, 0.0
+                            arduino.send_command(0, 0, 0, 0)
 
                 # ── Fase E: verificar camino cada N ticks ──────
                 if grid_map.has_wall_map():
@@ -2402,7 +2873,13 @@ def main():
                     "frontal_blocked": frontal_blocked,
                     "frontal_count": last_frontal_count,
                     "skipped_count": len(skipped_wp_indices),
-                    "patron_actual": patron_actual,
+                    "patron_actual":    patron_actual,
+                    "clean_coverage":   grid_map.get_clean_coverage_pct(),
+                    "clean_threshold":  clean_threshold,
+                    "replan_count":     replan_count,
+                    "cleaning_complete": cleaning_complete,
+                    "cleanable_count":  grid_map.get_cleanable_count(),
+                    "uncleaned_count":  grid_map.get_uncleaned_cell_count(),
                     "dyn_count_total": dyn_count,
                     "clean_on": clean_sys,
                     "comp_on": comp_on,
@@ -2418,7 +2895,9 @@ def main():
                 }
 
                 draw_panel(screen, font, small, state)
-                draw_help_bar(screen, font, small, state, help_rect)
+                draw_toolbar(screen, font, small, state, dropdown_open=dropdown_open)
+                if dropdown_open:
+                    draw_controls_dropdown(screen, small)
                 pygame.display.flip()
 
     except KeyboardInterrupt:
