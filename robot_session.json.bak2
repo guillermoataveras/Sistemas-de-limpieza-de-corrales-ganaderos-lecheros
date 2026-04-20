@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "timestamp": "2026-04-20T15:11:15",
+  "clean_exit": false,
+  "x_mm": 2554.712730621879,
+  "y_mm": 2536.5534828422387,
+  "yaw_deg": 213.74681799999894,
+  "patron_actual": "NINGUNO",
+  "clean_threshold": 90.0,
+  "replan_count": 0,
+  "mission_home_x": 2500.0,
+  "mission_home_y": 2500.0,
+  "cam_dirt_ema": 0.9957096354166663,
+  "grid_rows": 50,
+  "grid_cols": 50,
+  "walls": "eJztwQENAAAAwqD3T20ON6AAAOjMAAnEAAE=",
+  "cleaned": "eJztwQENAAAAwqD3T20ON6AAAOjMAAnEAAE=",
+  "cleanable": "eJztwQENAAAAwqD3T20ON6AAAOjMAAnEAAE=",
+  "discovered": "eJztwQENAAAAwqD3T20ON6AAAOjMAAnEAAE="
+}
