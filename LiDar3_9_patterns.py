@@ -167,7 +167,7 @@ PWM_STEP = 5
 PWM_MIN = 35
 PWM_MAX = 180
 SIGNO_MOTOR_IZQ = -1
-SIGNO_MOTOR_DER = 1
+SIGNO_MOTOR_DER = -1
 
 # ==========================================
 # ACTUADORES

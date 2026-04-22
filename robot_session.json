@@ -1,10 +1,10 @@
 {
   "version": 2,
-  "timestamp": "2026-04-20T15:12:20",
+  "timestamp": "2026-04-21T23:06:08",
   "clean_exit": true,
-  "x_mm": 2481.519902156974,
-  "y_mm": 2487.6534778697787,
-  "yaw_deg": 213.74681799999894,
+  "x_mm": 2296.145208624481,
+  "y_mm": 2474.6452362766922,
+  "yaw_deg": 6.962690999999893,
   "patron_actual": "NINGUNO",
   "clean_threshold": 90.0,
   "replan_count": 0,
@@ -16,5 +16,5 @@
   "walls": "eJztwQENAAAAwqD3T20ON6AAAOjMAAnEAAE=",
   "cleaned": "eJztwQENAAAAwqD3T20ON6AAAOjMAAnEAAE=",
   "cleanable": "eJztwQENAAAAwqD3T20ON6AAAOjMAAnEAAE=",
-  "discovered": "eJztwQENAAAAwqD3T20ON6AAAOjMAAnEAAE="
+  "discovered": "eJzt0zEOwCAMA8Dk/59mqEShuIktGBjiNT5CVWFW6fEnYp00Y5sji8gQArFykXznxA4w50RyyDrGN2VX7AhI0GRDBLc69BkQwPOYvzEXWPE2WODyit4KAXgbmfh/UCYTVUR9ZNl+pVKxm9MACXEBxw=="
 }

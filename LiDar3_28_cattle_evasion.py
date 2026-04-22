@@ -47,7 +47,7 @@ INTERVALO_DIBUJO = 1.0 / FPS_DIBUJO
 # ==========================================
 MAPA_ANCHO_MM = 5000
 MAPA_ALTO_MM = 5000
-CELDA_MM = 100
+CELDA_MM = 50
 
 GRID_COLS = MAPA_ANCHO_MM // CELDA_MM
 GRID_ROWS = MAPA_ALTO_MM // CELDA_MM
@@ -63,7 +63,7 @@ LIDAR_YAW_INICIAL_DEG = 0.0
 # GEOMETRÍA DEL ROBOT
 # Referencia = centro del LiDAR
 # ==========================================
-ROBOT_LARGO_MM = 650
+ROBOT_LARGO_MM = 600
 ROBOT_ANCHO_MM = 400
 DIST_LIDAR_FRENTE_MM = 150
 DIST_LIDAR_ATRAS_MM = ROBOT_LARGO_MM - DIST_LIDAR_FRENTE_MM
@@ -187,15 +187,15 @@ COLOR_THRESH_WARN = (255, 180,  60)
 # ==========================================
 # CÁMARA FRONTAL — ROI Y VISIÓN
 # ==========================================
-CAM_INDEX            = 0        # índice de la cámara (0 = primera disponible)
+CAM_INDEX            = 1        # índice de la cámara (0 = primera disponible)
 CAM_WIDTH_PX         = 640
 CAM_HEIGHT_PX        = 480
 CAM_FPS              = 30
 
 # ROI proyectado en el mapa (rectángulo delante del robot)
-CAM_ROI_OFFSET_MM    = 200.0    # distancia desde el frente del robot al borde del ROI
-CAM_ROI_LARGO_MM     = 300.0    # largo del rectángulo (dirección de avance)
-CAM_ROI_ANCHO_MM     = 250.0    # ancho del rectángulo (perpendicular)
+CAM_ROI_OFFSET_MM    = 30.0    # distancia desde el frente del robot al borde del ROI
+CAM_ROI_LARGO_MM     = 50.0    # largo del rectángulo (dirección de avance)
+CAM_ROI_ANCHO_MM     = 110.0    # ancho del rectángulo (perpendicular)
 
 # Umbrales de suciedad
 CAM_WHITE_THRESH     = 200      # valor de gris: píxel "blanco" si > este valor
@@ -220,10 +220,10 @@ COLOR_ROI_BORDER      = (  0, 230, 100)   # verde — ROI frontal
 COLOR_REAR_ROI_BORDER = (200, 100, 255)   # morado — ROI trasero
 
 # ── Cámara trasera ────────────────────────────────────
-CAM_REAR_INDEX              = 1
-CAM_REAR_ROI_OFFSET_MM      = 150.0
-CAM_REAR_ROI_LARGO_MM       = 300.0
-CAM_REAR_ROI_ANCHO_MM       = 250.0
+CAM_REAR_INDEX              = 0
+CAM_REAR_ROI_OFFSET_MM      = 40.0
+CAM_REAR_ROI_LARGO_MM       = 50.0
+CAM_REAR_ROI_ANCHO_MM       = 110.0
 CAM_REAR_DIRT_FEEDBACK_THR  = 0.45   # dirt_ratio trasero mínimo para marcar celda
 
 # ── Detección HSV (reemplaza umbral de grises) ────────
@@ -259,7 +259,7 @@ PWM_STEP = 5
 PWM_MIN = 35
 PWM_MAX = 180
 SIGNO_MOTOR_IZQ = -1
-SIGNO_MOTOR_DER = 1
+SIGNO_MOTOR_DER = -1
 
 # ==========================================
 # ACTUADORES
@@ -391,7 +391,7 @@ REAR_MAX_DIST_MM    = 400.0   # distancia máxima considerada peligrosa atrás
 REAR_MIN_HITS       = 4       # hits mínimos en cono trasero para bloquearlo
 
 # Retroceso controlado
-BACKUP_DIST_MM      = 350.0   # distancia máxima de retroceso (mm)
+BACKUP_DIST_MM      = 100.0   # distancia máxima de retroceso (mm)
 
 # ═══════════════════════════════════════════════════════
 # MODO LiDAR-ONLY (encoders desactivados)
@@ -464,7 +464,7 @@ STUCK_ALIGN_TICKS        = 90       # ticks en ALIGN sin éxito (≈3s a 30FPS)
 STUCK_POSE_CHANGE_MM     = 50.0     # mm mínimos de movimiento en ventana
 STUCK_POSE_WINDOW_TICKS  = 300      # ventana de observación (~10s)
 STUCK_MAX_ATTEMPTS       = 3        # intentos por WP antes de skip permanente
-STUCK_BACKUP_MM          = 300.0    # mm de retroceso al detectar stuck
+STUCK_BACKUP_MM          = 100.0    # mm de retroceso al detectar stuck
 STUCK_BYPASS_DIST_MM     = 2000.0   # saltar WP si siguiente está a esta dist máxima
 
 # ═══════════════════════════════════════════════════════
