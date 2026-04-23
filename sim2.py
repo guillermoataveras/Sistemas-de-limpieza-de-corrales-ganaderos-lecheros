@@ -3,7 +3,7 @@ sim.py — Simulador del Robot Cleaner de Corrales Ganaderos
 ===========================================================
 Ejecutar con:
     python sim.py
-    python sim.py ruta/a/LiDar3_27_cattle_nogo_recovery.py
+    python sim.py ruta/a/LiDar3_V8_Control_Program.py
 
 No requiere hardware. Arduino, LiDAR y cámaras son simulados.
 Todos los controles y modos del programa real funcionan igual.
@@ -24,19 +24,19 @@ import pygame
 # ══════════════════════════════════════════════════════════════════
 _CANDIDATES = [
     sys.argv[1] if len(sys.argv) > 1 else None,
-    "LiDar3_27_cattle_nogo_recovery.py",
+    "LiDar3_V8_Control_Program.py",
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 "LiDar3_27_cattle_nogo_recovery.py"),
+                 "LiDar3_V8_Control_Program.py"),
 ]
 MAIN_FILE = next((c for c in _CANDIDATES if c and os.path.exists(c)), None)
 if MAIN_FILE is None:
-    print("ERROR: No se encontró LiDar3_27_cattle_nogo_recovery.py")
+    print("ERROR: No se encontró LiDar3_V8_Control_Program.py")
     print("Uso: python sim.py [ruta/al/archivo.py]")
     sys.exit(1)
 
 # ══════════════════════════════════════════════════════════════════
 # ★ PARÁMETROS AJUSTABLES — edita aquí para calibrar el simulador ★
-# ══════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════
 
 # ── Posición y orientación inicial ───────────────────────────────
 SIM_INITIAL_X_MM    = None      # None = centro del mapa (MAPA_ANCHO_MM / 2)
