@@ -1,9 +1,4 @@
 import math
-
-# Calculadas tras definir WHEEL_DIAMETER_MM (al final del bloque de constantes)
-# Se definen aquí como forward-declaration; se sobrescriben abajo
-WHEEL_CIRCUM_MM  = math.pi * 76.2   # perímetro rueda (actualizar si cambia WHEEL_DIAMETER_MM)
-MM_PER_DEG_WHEEL = WHEEL_CIRCUM_MM / 360.0  # mm por grado de giro del eje
 import time
 import struct
 import threading
@@ -43,11 +38,11 @@ FPS_DIBUJO = 20
 INTERVALO_DIBUJO = 1.0 / FPS_DIBUJO
 
 # ==========================================
-# MAPA FIJO 8x8 m
+# MAPA FIJO 5x5 m
 # ==========================================
 MAPA_ANCHO_MM = 5000
 MAPA_ALTO_MM = 5000
-CELDA_MM = 100
+CELDA_MM = 50
 
 GRID_COLS = MAPA_ANCHO_MM // CELDA_MM
 GRID_ROWS = MAPA_ALTO_MM // CELDA_MM
@@ -65,7 +60,7 @@ LIDAR_YAW_INICIAL_DEG = 0.0
 # La nube del LiDAR aparece espejada en X respecto al marco real.
 # Este flag la refleja al depositarse en transform_scan_*. Pon False
 # si no tienes el problema de espejo.
-LIDAR_MIRROR_X = False
+LIDAR_MIRROR_X = False # No 
 
 # ═══════════════════════════════════════════════════════
 # ROTACIÓN DEL FRAME DEL MAPA (rota TODO, no solo visual)
@@ -79,16 +74,15 @@ FRAME_ROTATION_DEG = 0.0
 
 
 # Build simplificada activa: navegación basada en LiDAR + giroscopio.
-# Los caminos de encoders se mantienen solo como stubs de compatibilidad.
 SIMPLIFIED_ROUTE_BUILD = True
 
 # ==========================================
 # GEOMETRÍA DEL ROBOT
 # Referencia = centro del LiDAR
 # ==========================================
-ROBOT_LARGO_MM = 590
-ROBOT_ANCHO_MM = 400
-DIST_LIDAR_FRENTE_MM = 150
+ROBOT_LARGO_MM = 640
+ROBOT_ANCHO_MM = 460
+DIST_LIDAR_FRENTE_MM = 180
 DIST_LIDAR_ATRAS_MM = ROBOT_LARGO_MM - DIST_LIDAR_FRENTE_MM
 MITAD_ANCHO_MM = ROBOT_ANCHO_MM / 2
 
@@ -97,18 +91,9 @@ OFFSET_LIDAR_FISICO = 186.0
 # ==========================================
 # ODOMETRÍA / ESTIMACIÓN DE POSE
 # ==========================================
-WHEEL_TRACK_MM     = 395.0   # separación centro-centro ruedas motrices (medida real)
+WHEEL_TRACK_MM     = 400.0   # separación centro-centro ruedas motrices (medida real)
 
-# ── Encoders AS5600 ──────────────────────────────────
-# Mide el diámetro real con cinta métrica:
-# marca la rueda, hazla rodar 1 vuelta completa → mide la distancia → diámetro = dist/π
-WHEEL_DIAMETER_MM  = 76.2    # ← CALIBRAR con cinta métrica
-# WHEEL_CIRCUM_MM se calcula después de importar math (ver abajo)
-
-# Umbral mínimo de delta (deg) para considerar que la rueda se movió
-ENC_DELTA_THRESHOLD_DEG = 0.5
-
-# Fallback PWM (activo solo si no hay datos de encoder disponibles)
+# Dead reckoning por PWM (único método de predicción de pose entre ticks de LiDAR)
 VEL_MM_PER_PWM     = 3.5
 PWM_VEL_THRESHOLD  = 20
 
@@ -151,7 +136,7 @@ MATCH_TURN_SETTLE_TICKS     = 2       # ticks de espera tras parar giro
 
 # Segmentación de hits
 SEG_CLUSTER_GAP_MM   = 200.0  # distancia máx entre hits consecutivos del mismo segmento
-SEG_MIN_POINTS       = 5      # puntos mínimos para analizar un segmento
+SEG_MIN_POINTS       = 8      # puntos mínimos para analizar un segmento
 SEG_LINE_RESIDUAL_MM = 55.0   # residual máx RMS para considerar segmento "recto" (pared)
                                # por encima → irregular → objeto dinámico
 
@@ -182,7 +167,7 @@ COLOR_PATH_BLOCKED   = (200,  50,  50)
 PATRON_NINGUNO   = "NINGUNO"
 PATRON_MATRICIAL = "MATRICIAL"
 PATRON_ESPIRAL   = "ESPIRAL"
-PATRON_BOWTIE    = "BOW-TIE"
+PATRON_BOWTIE    = "BOW-TIE" # Me gustaria simplificar este
 
 PATRONES_CICLO   = [PATRON_NINGUNO, PATRON_MATRICIAL,
                     PATRON_ESPIRAL, PATRON_BOWTIE]
@@ -192,7 +177,7 @@ PATRONES_CICLO   = [PATRON_NINGUNO, PATRON_MATRICIAL,
 PASO_LIMPIEZA_MM = 440   # mm  (= RADIO_LIMPIEZA_MM * 2)
 
 # Margen desde las paredes para no chocar
-MARGEN_PARED_MM  = 450
+MARGEN_PARED_MM  = 250
 
 # Radio de giro efectivo para filtrado de waypoints:
 # el robot necesita girar al final de cada fila sin que su cono
@@ -212,7 +197,7 @@ COLOR_PATRON = {
 # ==========================================
 # REPLANNING DE LIMPIEZA
 # ==========================================
-CLEAN_THRESHOLD_DEFAULT = 90.0   # % de cobertura para considerar "limpio"
+CLEAN_THRESHOLD_DEFAULT = 70.0   # % de cobertura para considerar "limpio"
 CLEAN_THRESHOLD_STEP    =  5.0   # paso al ajustar con [ / ]
 CLEAN_THRESHOLD_MIN     = 25.0
 CLEAN_THRESHOLD_MAX     = 100.0
@@ -228,7 +213,7 @@ COLOR_THRESH_WARN = (255, 180,  60)
 # ==========================================
 # CÁMARA FRONTAL — ROI Y VISIÓN
 # ==========================================
-CAM_INDEX            = 0        # índice de la cámara (0 = primera disponible)
+CAM_INDEX            = 1        # índice de la cámara (0 = primera disponible)
 CAM_WIDTH_PX         = 640
 CAM_HEIGHT_PX        = 480
 CAM_FPS              = 30
@@ -247,21 +232,21 @@ CAM_MEDIUM_RATIO     = 0.40     # 0.40–0.70       → MEDIO  /  <0.40 → SUCI
 CAM_EMA_ALPHA        = 0.30
 
 # PWM auxiliar adaptativo por nivel de suciedad
-CAM_PWM_CLEAN        = 80
-CAM_PWM_MEDIUM       = 160
-CAM_PWM_DIRTY        = 255
+CAM_PWM_CLEAN        = 60
+CAM_PWM_MEDIUM       = 100
+CAM_PWM_DIRTY        = 180
 
 # Etiquetas
-CAM_LABEL_CLEAN  = "LIMPIO"
+CAM_LABEL_CLEAN  = "SUCIO"
 CAM_LABEL_MEDIUM = "MEDIO"
-CAM_LABEL_DIRTY  = "SUCIO"
+CAM_LABEL_DIRTY  = "LIMPIO"
 
 # Colores del ROI en el mapa
 COLOR_ROI_BORDER      = (  0, 230, 100)   # verde — ROI frontal
 COLOR_REAR_ROI_BORDER = (200, 100, 255)   # morado — ROI trasero
 
 # ── Cámara trasera ────────────────────────────────────
-CAM_REAR_INDEX              = 1
+CAM_REAR_INDEX              = 2
 CAM_REAR_ROI_OFFSET_MM      = 40.0
 CAM_REAR_ROI_LARGO_MM       = 50.0
 CAM_REAR_ROI_ANCHO_MM       = 110.0
@@ -283,7 +268,7 @@ CAM_REAR_PREVIEW_H = 56
 # LIDAR
 # ==========================================
 LIDAR_MIN_MM = 30
-LIDAR_MAX_MM = 12000
+LIDAR_MAX_MM = 8000
 
 LIDAR_BIN_DEG = 1.0
 LIDAR_TTL_S = 0.45
@@ -294,8 +279,8 @@ LIDAR_EMA_ALPHA = 0.35
 # ==========================================
 # CONTROL MANUAL
 # ==========================================
-PWM_BASE = 100
-PWM_GIRO = 80
+PWM_BASE = 150
+PWM_GIRO = 90
 PWM_STEP = 5
 PWM_MIN = 35
 PWM_MAX = 180
@@ -327,7 +312,7 @@ COLOR_MODE_SCAN      = (255, 130,  50)   # naranja — modo scan en panel
 
 # Waypoints
 WP_RADIO_PX        = 7    # radio del círculo de cada waypoint en pantalla
-WP_REACH_MM        = 150  # distancia para considerar waypoint alcanzado
+WP_REACH_MM        = 200  # distancia para considerar waypoint alcanzado
 COLOR_RUTA_LINE    = (255, 200,  50)
 COLOR_WP_NORMAL    = (255, 160,  30)
 COLOR_WP_ACTIVE    = ( 80, 220, 255)
@@ -387,16 +372,6 @@ RECONNECT_RETRY_S     =  1.5
 # ── Log de sesión ────────────────────────────────────
 LOG_EVERY_N_TICKS     = 30
 
-# ── Filtro de Kalman (fusión encoders + ICP) ─────────
-# Prioridad: yaw siempre viene del giroscopio (no se fusiona).
-# Solo la posición (x,y) entra al filtro.
-KALMAN_Q_BASE_MM2     = 4.0     # varianza de proceso base (encoders confiables)
-KALMAN_Q_SLIP_MM2     = 800.0   # varianza alta cuando hay slip (ignora encoders)
-KALMAN_R_GOOD_MM2     = 9.0     # varianza LiDAR con match de calidad alta
-KALMAN_R_BAD_MM2      = 200.0   # varianza LiDAR con match pobre
-KALMAN_P_INIT_MM2     = 25.0    # incertidumbre inicial del estado
-KALMAN_MATCH_Q_GOOD   = 60.0    # umbral de match_quality para R_GOOD
-
 # ── A* — búsqueda de camino sobre celdas limpiables ──
 ASTAR_MAX_EXPANSIONS  = 5000    # límite de nodos expandidos (seguridad)
 ASTAR_WALL_CLEARANCE  = MARGEN_PARED_MM   # celdas con pared más cerca son inválidas
@@ -427,30 +402,21 @@ REAR_MAX_DIST_MM    = 400.0   # distancia máxima considerada peligrosa atrás
 REAR_MIN_HITS       = 4       # hits mínimos en cono trasero para bloquearlo
 
 # Retroceso controlado
-BACKUP_DIST_MM      = 350.0   # distancia máxima de retroceso (mm)
+BACKUP_DIST_MM      = 200.0   # distancia máxima de retroceso (mm)
 
 # ═══════════════════════════════════════════════════════
-# MODO LiDAR-ONLY (encoders desactivados)
+# MODO OPERATIVO LiDAR-ONLY
 # ═══════════════════════════════════════════════════════
-# Cuando USE_ENCODERS = False:
-#   - Los encoders se ignoran completamente
-#   - La odometría se predice con PWM × VEL_MM_PER_PWM
-#   - El LiDAR corre más rápido (MATCH cada 2 ticks)
-#   - ICP hace más iteraciones para mayor precisión
-#   - Se reduce el PWM base para dar tiempo al LiDAR a seguir
-#   - Kalman confía más en el LiDAR (R bajo) y menos en la predicción (Q alto)
+# El robot se mueve más despacio para que el LiDAR pueda seguir
+# la pose con precisión. Estos valores sustituyen directamente a
+# los defaults genéricos cuando se aplican al follower / matching.
 
-USE_ENCODERS              = False   # True = híbrido, False = LiDAR-only
-
-LIDAR_ONLY_PWM_BASE       = 50      # PWM base en modo LiDAR-only
-LIDAR_ONLY_MATCH_EVERY    = 1       # ICP cada 2 ticks (~15 Hz a 30 FPS)
-LIDAR_ONLY_ICP_ITERS      = 4       # más iteraciones sin encoders
-LIDAR_ONLY_Q_MM2          = 100.0   # Kalman Q alto (predicción PWM imprecisa)
-LIDAR_ONLY_R_GOOD         = 4.0     # Kalman R bajo (LiDAR muy confiable)
-LIDAR_ONLY_R_BAD          = 150.0   # R cuando match_quality baja
-LIDAR_ONLY_SLOW_MULT      = 1.3     # zonas de slowdown 30% más amplias
-LIDAR_ONLY_FOLLOW_ALIGN   = 70      # follower PWM align (en vez de 65)
-LIDAR_ONLY_FOLLOW_ADVANCE = 85      # follower PWM advance (en vez de 85)
+OP_PWM_BASE        = 50      # PWM base de avance en ruta
+OP_MATCH_EVERY     = 1       # matching cada N ticks (1 = cada tick)
+OP_ICP_ITERS       = 4       # iteraciones de ICP por llamada
+OP_SLOW_MULT       = 1.3     # zonas de slowdown 30% más amplias
+OP_FOLLOW_ALIGN    = 70      # follower PWM align
+OP_FOLLOW_ADVANCE  = 85      # follower PWM advance
 
 # ═══════════════════════════════════════════════════════
 # POSE DE CONTROL (PRUEBA) — LiDAR solo observa, no recoloca
@@ -495,7 +461,7 @@ ROUTE_MARGIN_CELLS     = 5       # margen configurable desde paredes (celdas)
 # ═══════════════════════════════════════════════════════
 # REPLAN POR FILAS SUCIAS
 # ═══════════════════════════════════════════════════════
-DIRT_REPLAN_MIN_TILES_PER_ROW = 2  # filas con ≥N tiles sucios/medios → limpiar
+DIRT_REPLAN_MIN_TILES_PER_ROW = 3  # filas con ≥N tiles sucios/medios → limpiar
 
 # ═══════════════════════════════════════════════════════
 # AJUSTE ANGULAR DE POSE/NUBE (mapa fijo, datos escaneados ya depositados no rotan)
@@ -512,28 +478,28 @@ FRAME_ROT_COARSE_DEG  = 10.0   # Shift+Q/E ajustan pose + conos + nube ±10°
 # ═══════════════════════════════════════════════════════
 # El cuerpo real del robot está rotado respecto al frame base del LiDAR.
 # Este offset afecta SOLO al chasis/ROIs/conos/movimiento, no a la nube.
-BODY_FRAME_OFFSET_DEG = -90.0
+BODY_FRAME_OFFSET_DEG = 0.0
 
 # ANTI-STUCK (detección de atascamiento y skip de WP)
 # ═══════════════════════════════════════════════════════
 STUCK_ALIGN_TICKS        = 90       # ticks en ALIGN sin éxito (≈3s a 30FPS)
 STUCK_POSE_CHANGE_MM     = 50.0     # mm mínimos de movimiento en ventana
 STUCK_POSE_WINDOW_TICKS  = 300      # ventana de observación (~10s)
-STUCK_MAX_ATTEMPTS       = 3        # intentos por WP antes de skip permanente
-STUCK_BACKUP_MM          = 300.0    # mm de retroceso al detectar stuck
+STUCK_MAX_ATTEMPTS       = 6        # intentos por WP antes de skip permanente
+STUCK_BACKUP_MM          = 100.0    # mm de retroceso al detectar stuck
 STUCK_BYPASS_DIST_MM     = 2000.0   # saltar WP si siguiente está a esta dist máxima
 
 # ═══════════════════════════════════════════════════════
 # CATTLE TRACKING (vacas como objetos con velocidad)
 # ═══════════════════════════════════════════════════════
-CATTLE_CLUSTER_RADIUS_MM = 350.0   # hits dentro de este radio → mismo cluster
+CATTLE_CLUSTER_RADIUS_MM = 100.0   # hits dentro de este radio → mismo cluster
 CATTLE_MIN_HITS          = 3       # mínimo de hits dinámicos para formar track
-CATTLE_MATCH_RADIUS_MM   = 600.0   # distancia máx para asociar entre frames
+CATTLE_MATCH_RADIUS_MM   = 300.0   # distancia máx para asociar entre frames
 CATTLE_TRACK_TTL_TICKS   = 45      # ticks sin match → drop track (~1.5s)
 CATTLE_VEL_EMA_ALPHA     = 0.4     # suavizado de velocidad
-CATTLE_PREDICT_HORIZON_S = 2.5     # horizonte de predicción (segundos)
-CATTLE_AVOID_RADIUS_MM   = 500.0   # expand buffer para evasión
-CATTLE_MAX_SPEED_MM_S    = 2500.0  # velocidad máxima plausible (filtra ruido)
+CATTLE_PREDICT_HORIZON_S = 1.5     # horizonte de predicción (segundos)
+CATTLE_AVOID_RADIUS_MM   = 350.0   # expand buffer para evasión
+CATTLE_MAX_SPEED_MM_S    = 1500.0  # velocidad máxima plausible (filtra ruido)
 
 # ═══════════════════════════════════════════════════════
 # ZONAS NO-GO (polígonos prohibidos dibujados por el usuario)
@@ -543,8 +509,6 @@ NOGO_MIN_AREA_MM2        = 90000.0   # área mínima para registrar (≈30cm×30
 # ═══════════════════════════════════════════════════════
 # RECOVERY / WATCHDOGS DE ESTADO
 # ═══════════════════════════════════════════════════════
-KALMAN_RESET_THRESHOLD_MM   = 150.0   # σ sostenido para disparar reset+stop
-KALMAN_RESET_WINDOW_TICKS   = 150     # ticks de σ alto (~5s) antes de disparar
 STATE_BACKUP_ROTATIONS      = 3       # copias rotativas de state.json
 MAP_CORRUPT_COV_THRESHOLD   = 95.0    # coverage sin progreso ⇒ rescan sugerido
 MAP_CORRUPT_STUCK_TICKS     = 300     # ticks quieto con coverage alto
@@ -573,7 +537,7 @@ COLOR_HOME_WP = (255, 100, 220)
 # ALERTA DINÁMICA
 # ==========================================
 RADIO_ALERTA_DINAMICA_MM = 400.0
-UMBRAL_PUNTOS_DINAMICOS = 6
+UMBRAL_PUNTOS_DINAMICOS = 8
 
 # ==========================================
 # COLORES
@@ -765,6 +729,20 @@ def dirt_to_aux_pwm(dirt_ratio, comp_on=False, comp_pwm=0):
     return pwm
 
 
+# ── Convención angular del robot ─────────────────────────────────────
+# En este proyecto el heading 0° apunta hacia ARRIBA del mapa (+Y).
+# Por eso el vector forward usa sin para X y cos para Y.
+def heading_forward_lateral(yaw_deg):
+    yaw_rad = math.radians(yaw_deg)
+    sin_y = math.sin(yaw_rad)
+    cos_y = math.cos(yaw_rad)
+    fwd = (sin_y, cos_y)
+    lat = (-cos_y, sin_y)
+    return fwd, lat
+
+def heading_from_vector_deg(dx, dy):
+    return math.degrees(math.atan2(dx, dy))
+
 # ── Funciones de ROI en mapa ──────────────────────────────────────
 
 def compute_roi_corners(lidar_x_mm, lidar_y_mm, yaw_deg,
@@ -778,13 +756,8 @@ def compute_roi_corners(lidar_x_mm, lidar_y_mm, yaw_deg,
 
     Retorna lista de 4 tuplas (x_mm, y_mm) en orden: TL, TR, BR, BL.
     """
-    yaw_rad  = math.radians(yaw_deg)
-    cos_y    = math.cos(yaw_rad)
-    sin_y    = math.sin(yaw_rad)
-
-    # Vector unitario adelante y lateral
-    fwd  = (cos_y,  sin_y)
-    lat  = (-sin_y, cos_y)   # perpendicular izquierda
+    # Vector unitario adelante y lateral usando convención 0° = arriba
+    fwd, lat = heading_forward_lateral(yaw_deg)
 
     # Centro frontal del ROI (borde delantero)
     cx = lidar_x_mm + fwd[0] * front_offset_mm
@@ -817,12 +790,8 @@ def compute_rear_roi_corners(lidar_x_mm, lidar_y_mm, yaw_deg,
     Apunta en dirección opuesta al heading — observa lo que ya pasó el robot.
     Retorna lista de 4 tuplas (x_mm, y_mm): TL, TR, BR, BL.
     """
-    # Dirección trasera = -heading
-    rear_yaw_rad = math.radians(yaw_deg + 180.0)
-    cos_r = math.cos(rear_yaw_rad)
-    sin_r = math.sin(rear_yaw_rad)
-    fwd   = (cos_r, sin_r)
-    lat   = (-sin_r, cos_r)
+    # Dirección trasera = -heading, misma convención angular del robot
+    fwd, lat = heading_forward_lateral(yaw_deg + 180.0)
 
     cx = lidar_x_mm + fwd[0] * rear_offset_mm
     cy = lidar_y_mm + fwd[1] * rear_offset_mm
@@ -890,48 +859,6 @@ class HeadingPID:
     def reset(self):
         self._integral   = 0.0
         self._prev_error = 0.0
-
-
-class PoseKalmanFilter:
-    """
-    Filtro de fusión de pose simplificado para modo LiDAR-only.
-
-    Ya no usa una covarianza 2x2 ni una ganancia de Kalman formal.
-    Mantiene solo:
-      - pose predicha por PWM entre ICPs
-      - corrección suavizada cuando llega una pose LiDAR
-      - un escalar de incertidumbre para watchdog
-
-    La interfaz pública se conserva para no romper el resto del programa.
-    """
-
-    def __init__(self, x0, y0, p_init=KALMAN_P_INIT_MM2):
-        self.x = float(x0)
-        self.y = float(y0)
-        self.sigma_mm = float(max(1.0, math.sqrt(p_init)))
-
-    def predict(self, dx_mm, dy_mm, q_var_mm2=KALMAN_Q_BASE_MM2):
-        self.x += dx_mm
-        self.y += dy_mm
-        self.sigma_mm = min(300.0, math.sqrt(self.sigma_mm ** 2 + max(0.0, q_var_mm2)))
-
-    def update_lidar(self, z_x, z_y, match_quality=None, r_var_mm2=None):
-        if match_quality is None:
-            alpha = 0.55
-        else:
-            q = clamp(match_quality, 0.0, 100.0) / 100.0
-            alpha = 0.20 + 0.65 * q
-        self.x = (1.0 - alpha) * self.x + alpha * float(z_x)
-        self.y = (1.0 - alpha) * self.y + alpha * float(z_y)
-        self.sigma_mm = max(3.0, self.sigma_mm * (1.0 - 0.55 * alpha))
-
-    def uncertainty_mm(self):
-        return float(self.sigma_mm)
-
-    def reset(self, x, y, p_init=KALMAN_P_INIT_MM2):
-        self.x = float(x)
-        self.y = float(y)
-        self.sigma_mm = float(max(1.0, math.sqrt(p_init)))
 
 
 def astar_path(grid_map, start_mm, goal_mm,
@@ -1866,12 +1793,6 @@ class ArduinoSerialController:
         with self.lock:
             return self.last_dang
 
-    def get_encoder_deltas(self):
-        return 0.0, 0.0, False
-
-    def get_encoder_accum(self):
-        return 0.0, 0.0
-
     def reset_yaw_accumulator(self):
         with self.lock:
             self.accumulated_yaw_deg = 0.0
@@ -2337,7 +2258,7 @@ class GridMap:
         """
         Dibuja el avatar del robot con información extendida:
           - Rectángulo orientado (cuerpo real del robot)
-          - Halo de incertidumbre (radio = uncertainty_mm del Kalman)
+          - Halo de incertidumbre (radio = uncertainty_mm de pose)
           - Cono frontal color-codeado por speed_scale (verde/naranja/rojo)
           - Dot de sensor activo (esquina trasera del robot)
           - Migas de pan del trail (si breadcrumbs se provee)
@@ -2353,7 +2274,7 @@ class GridMap:
                 for p in pts:
                     pygame.draw.circle(screen, (140, 180, 255), p, 1)
 
-        # ── Halo de incertidumbre Kalman ───────────────────────
+        # ── Halo de incertidumbre de pose ──────────────────────
         if uncertainty_mm > 0.5:
             sx0, sy0 = self.world_to_screen(area_rect, lidar_x_mm, lidar_y_mm)
             rx, _    = self.world_to_screen(area_rect,
@@ -2905,21 +2826,11 @@ def _panel_section_pose(screen, small, state, cx, cw, y):
     screen.blit(small.render(f"Fuente: {src}", True, (100,180,255)), (cx+10, y)); y+=17
     screen.blit(small.render(f"Corr ICP: {corr:.1f}mm", True, COLOR_SUBTEXT),(cx+10,y));y+=17
 
-    # Kalman uncertainty con color-code (amarillo alto, verde bajo)
+    # Incertidumbre de pose con color-code (amarillo alto, verde bajo)
     kc = ((255,220,80) if k_un > 20 else
           (255,180,60) if k_un > 10 else COLOR_OK)
-    screen.blit(small.render(f"Kalman σ: ±{k_un:.1f}mm",
+    screen.blit(small.render(f"Pose σ: ±{k_un:.1f}mm",
                               True, kc), (cx+10,y)); y+=17
-
-    enc_i = state.get("enc_acum_izq", 0.0)
-    enc_d = state.get("enc_acum_der", 0.0)
-    use_enc = state.get("use_encoders", True)
-    if use_enc:
-        screen.blit(small.render(f"Enc I:{enc_i:.0f}° D:{enc_d:.0f}°",
-                                  True, COLOR_SUBTEXT), (cx+10,y)); y+=17
-    else:
-        screen.blit(small.render("Encoders: DESACTIVADOS",
-                                  True, (150, 150, 170)), (cx+10,y)); y+=17
 
     # Breadcrumbs info
     screen.blit(small.render(f"Trail: {bc} migas",
@@ -3102,7 +3013,6 @@ def draw_toolbar(screen, font, small, state, dropdown_open=False):
     coverage   = state.get("clean_coverage", 0.0)
     threshold  = state.get("clean_threshold", CLEAN_THRESHOLD_DEFAULT)
     patron_now = state.get("patron_actual", PATRON_NINGUNO)
-    enc_ok     = state.get("enc_available", False)
     has_walls  = state.get("has_wall_map", False)
     blocked    = state.get("frontal_blocked", False)
     clean_done = state.get("cleaning_complete", False)
@@ -3171,9 +3081,8 @@ def draw_toolbar(screen, font, small, state, dropdown_open=False):
         cx = pill(f"{ps} {patron_now}", pc, (22,24,38), cx)
 
     # Sensor source pill
-    if has_walls and enc_ok:   src, sc = "MATCH+ENC", (80,160,255)
-    elif enc_ok:               src, sc = "ENCODERS",  COLOR_OK
-    else:                      src, sc = "NO SENSORS",(140,140,150)
+    if has_walls: src, sc = "LIDAR MATCH", (80,160,255)
+    else:         src, sc = "LIDAR RAW",   (140,140,150)
     cx = pill(src, sc, (22,24,38), cx)
 
     if blocked: cx = pill("⬛ BLOCKED", COLOR_ALERT, (60,18,18), cx)
@@ -3348,16 +3257,10 @@ def odometry_step(x_mm, y_mm, yaw_deg, pl_cmd, pr_cmd, dt):
     v_l = pwm_to_vel(pl_cmd)
     v_r = pwm_to_vel(pr_cmd)
     v_linear = (v_l + v_r) * 0.5
-    yaw_rad = math.radians(yaw_deg)
-    new_x = clamp(x_mm + v_linear * math.cos(yaw_rad) * dt, 0.0, float(MAPA_ANCHO_MM))
-    new_y = clamp(y_mm + v_linear * math.sin(yaw_rad) * dt, 0.0, float(MAPA_ALTO_MM))
+    fwd, _ = heading_forward_lateral(yaw_deg)
+    new_x = clamp(x_mm + v_linear * fwd[0] * dt, 0.0, float(MAPA_ANCHO_MM))
+    new_y = clamp(y_mm + v_linear * fwd[1] * dt, 0.0, float(MAPA_ALTO_MM))
     return new_x, new_y
-
-
-def odometry_encoder_step(x_mm, y_mm, yaw_deg,
-                           delta_izq_deg, delta_der_deg):
-    """Legado removido: esta build trabaja solo con LiDAR+gyro."""
-    return x_mm, y_mm
 
 
 def lidar_correction_step(x_mm, y_mm, hits_global,
@@ -3560,7 +3463,7 @@ def check_frontal_obstacle(dynamic_hits, robot_x, robot_y, yaw_deg):
         if d > FRONT_MAX_DIST_MM:
             continue
 
-        ang_to_hit  = math.atan2(dy, dx)
+        ang_to_hit  = math.atan2(dx, dy)
         ang_diff    = abs(math.atan2(
             math.sin(ang_to_hit - yaw_rad),
             math.cos(ang_to_hit - yaw_rad)
@@ -3636,7 +3539,7 @@ def check_rear_obstacle(all_hits_global, robot_x, robot_y, yaw_deg):
         if d > REAR_MAX_DIST_MM:
             continue
 
-        ang_to_hit = math.atan2(dy, dx)
+        ang_to_hit = math.atan2(dx, dy)
         ang_diff   = abs(math.atan2(
             math.sin(ang_to_hit - rear_yaw_rad),
             math.cos(ang_to_hit - rear_yaw_rad)
@@ -4297,7 +4200,7 @@ def follow_route_step(robot_x, robot_y, yaw_deg,
     dx = target_x - robot_x
     dy = target_y - robot_y
     dist_mm = math.hypot(dx, dy)
-    target_heading = math.degrees(math.atan2(dy, dx))
+    target_heading = heading_from_vector_deg(dx, dy)
     heading_error = _normalize_angle(target_heading - yaw_deg)
 
     align_pwm = pwm_align if pwm_align is not None else PWM_FOLLOWER_ALIGN
@@ -4460,22 +4363,21 @@ def main():
     clock = pygame.time.Clock()
 
     font = pygame.font.SysFont("Arial", 18, bold=True)
-    small = pygame.font.SysFont("Consolas", 14)    # ── Constantes activas fijas para modo LiDAR+gyro ──
-    active_pwm_base       = LIDAR_ONLY_PWM_BASE
-    active_match_every    = LIDAR_ONLY_MATCH_EVERY
-    active_icp_iters      = LIDAR_ONLY_ICP_ITERS
-    active_kalman_q       = LIDAR_ONLY_Q_MM2
-    active_kalman_r_good  = LIDAR_ONLY_R_GOOD
-    active_kalman_r_bad   = LIDAR_ONLY_R_BAD
-    active_slow_dyn_mm    = SLOW_ZONE_DYN_MM * LIDAR_ONLY_SLOW_MULT
-    active_slow_sta_mm    = SLOW_ZONE_STA_MM * LIDAR_ONLY_SLOW_MULT
-    active_follow_align   = LIDAR_ONLY_FOLLOW_ALIGN
-    active_follow_advance = LIDAR_ONLY_FOLLOW_ADVANCE
+    small = pygame.font.SysFont("Consolas", 14)
+
+    # ── Constantes activas fijas para modo LiDAR+gyro ──
+    active_pwm_base       = OP_PWM_BASE
+    active_match_every    = OP_MATCH_EVERY
+    active_icp_iters      = OP_ICP_ITERS
+    active_slow_dyn_mm    = SLOW_ZONE_DYN_MM * OP_SLOW_MULT
+    active_slow_sta_mm    = SLOW_ZONE_STA_MM * OP_SLOW_MULT
+    active_follow_align   = OP_FOLLOW_ALIGN
+    active_follow_advance = OP_FOLLOW_ADVANCE
     print("═" * 62)
     print("  MODO LiDAR+GYRO simplificado activado")
     print(f"  PWM_BASE={active_pwm_base}")
     print(f"  ICP cada {active_match_every} ticks × {active_icp_iters} iters")
-    print(f"  Slowdown zones ×{LIDAR_ONLY_SLOW_MULT}")
+    print(f"  Slowdown zones ×{OP_SLOW_MULT}")
     print("═" * 62)
 
     lidar   = LiDAR_LD20(PUERTO_LIDAR, BAUD_LIDAR)
@@ -4636,15 +4538,12 @@ def main():
     cam_rear_surf        = None   # pygame.Surface para preview en panel
     cam_rear_cells_reset = 0
 
-    # ── PID heading + detección de slip ──────────────────
+    # ── PID heading ──────────────────────────────────────
     heading_pid         = HeadingPID()
-    slip_ema            = 0.0    # suavizado de magnitud de slip (0=sin patinaje)
-    slip_detected       = False
     gyro_prev_yaw       = saved_yaw_offset   # FIX: init con yaw restaurado, no 0
 
-    # ── Filtro de Kalman para pose (x, y) ────────────────
-    # El yaw NO entra al filtro — siempre viene del giroscopio.
-    # Kalman solo fusiona encoders (predict) con ICP (update) cuando hay ICP nuevo.
+    # ── Incertidumbre de pose (para halo visual del robot) ─
+    # Ya no viene de un Kalman; se aproxima con la calidad de match.
     pose_uncertainty_mm = 0.0
 
     # ── Breadcrumbs para retorno inteligente ─────────────
@@ -4961,8 +4860,6 @@ def main():
                         cam_rear_cells_reset  = 0
                         cam_dirt_ratio        = 0.0
                         cam_rear_dirt_ratio   = 0.0
-                        slip_ema              = 0.0
-                        slip_detected         = False
                         session_log.clear()
                         log_tick_counter      = 0
                         heading_pid.reset()
@@ -5079,7 +4976,6 @@ def main():
             yaw_deg_draw   = yaw_deg_motion
             yaw_deg        = yaw_deg_motion
             last_dang = arduino.get_last_dang()
-            enc_delta_izq, enc_delta_der, enc_available = 0.0, 0.0, False
 
             lidar_hits_global = []
             dyn_alert = False
@@ -5262,9 +5158,9 @@ def main():
                 # tile sucio → ir más lento para limpiar mejor.
                 if DIRT_GRID_ENABLED and modo == MODE_RUTA:
                     look_dist = LOOKAHEAD_CELLS_DIRT * grid_map.cell_mm
-                    yaw_r = math.radians(yaw_deg_motion)
-                    look_x = lidar_x_mm + look_dist * math.cos(yaw_r)
-                    look_y = lidar_y_mm + look_dist * math.sin(yaw_r)
+                    fwd_look, _ = heading_forward_lateral(yaw_deg_motion)
+                    look_x = lidar_x_mm + look_dist * fwd_look[0]
+                    look_y = lidar_y_mm + look_dist * fwd_look[1]
                     dirt_val = grid_map.get_dirt_cell(look_x, look_y)
                     if dirt_val >= DIRT_THRESHOLD_MEDIUM:
                         dirt_mult = SPEED_MULT_DIRTY
@@ -5334,7 +5230,7 @@ def main():
                         # Heading objetivo: el opuesto al vector home→robot
                         # (robot queda con espalda al home → yaw + 180° respecto
                         # al vector robot→home)
-                        target_heading = math.degrees(math.atan2(dy_h, dx_h))
+                        target_heading = heading_from_vector_deg(dx_h, dy_h)
                         reverse_heading = target_heading + 180.0
                         heading_error = _normalize_angle(reverse_heading - yaw_deg_motion)
 
@@ -5610,14 +5506,9 @@ def main():
             robot_moving = (abs(pl_cmd) >= PWM_VEL_THRESHOLD or
                             abs(pr_cmd) >= PWM_VEL_THRESHOLD)
 
-            # Los deltas de encoders ya se leyeron al inicio del tick
-            # (enc_delta_izq, enc_delta_der, enc_available).
-
-            # ── Slip / encoders eliminados en modo simplificado ─────
-            # PRUEBA ACTUAL: la pose operativa del robot se integra solo
-            # con gyro + modelo PWM. El LiDAR sigue alimentando nube,
-            # mapa y obstáculos, pero NO recoloca la pose XY ni el yaw.
-            slip_detected = False
+            # La pose operativa se integra con gyro + modelo PWM.
+            # El LiDAR alimenta nube, mapa y obstáculos; la corrección
+            # de pose por matching se gestiona más abajo (Fase 3).
             pl_phys = last_pl_cmd * SIGNO_MOTOR_IZQ
             pr_phys = last_pr_cmd * SIGNO_MOTOR_DER
             lidar_x_mm, lidar_y_mm = odometry_step(
@@ -5719,8 +5610,6 @@ def main():
                     "dirt_ratio":   round(cam_dirt_ratio, 3),
                     "rear_dirt":    round(cam_rear_dirt_ratio, 3),
                     "cam_aux_pwm":  cam_aux_pwm,
-                    "slip":         int(slip_detected),
-                    "slip_ema":     round(slip_ema, 2),
                     "speed_scale":  round(speed_scale, 3),
                     "adaptive_paso":round(adaptive_paso_mm, 0),
                 })
@@ -5843,9 +5732,6 @@ def main():
                     "pose_correction_mm": last_pose_correction,
                     "robot_moving": robot_moving,
                     "match_quality": last_match_quality,
-                    "enc_available": enc_available,
-                    "enc_acum_izq":  enc_delta_izq,
-                    "enc_acum_der":  enc_delta_der,
                     "frontal_blocked": frontal_blocked,
                     "frontal_count": last_frontal_count,
                     "skipped_count": len(skipped_wp_indices),
@@ -5890,10 +5776,7 @@ def main():
                     "cam_front_surface":  cam_front_surf,
                     "cam_rear_surface":   cam_rear_surf,
                     # Pose source label for panel
-                    # FIX: reflejar si el slip está activo — en ese caso los
-                    # encoders se ignoran en la odometría aunque estén disponibles
                     "pose_source_label":  _pose_src,
-                    "use_encoders":       False,
                     # display_fsm (SLOWDOWN visible when slowing)
                     "display_fsm": (
                         FSM_SLOWDOWN_OBS if (fsm_state == FSM_ADVANCE and speed_scale < 0.99)
@@ -5916,8 +5799,6 @@ def main():
                     "last_yaw_match_q":   last_yaw_match_q,
                     "yaw_offset":         saved_yaw_offset,
                     "backup_dist_done":   backup_dist_done,
-                    "slip_detected":      slip_detected,
-                    "slip_ema":           slip_ema,
                     "adaptive_paso_mm":   adaptive_paso_mm,
                     "pose_uncertainty_mm": pose_uncertainty_mm,
                     "breadcrumb_count":   len(breadcrumbs.trail),

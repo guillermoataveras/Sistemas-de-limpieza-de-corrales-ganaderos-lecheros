@@ -43,11 +43,11 @@ FPS_DIBUJO = 20
 INTERVALO_DIBUJO = 1.0 / FPS_DIBUJO
 
 # ==========================================
-# MAPA FIJO 8x8 m
+# MAPA FIJO 5x5 m
 # ==========================================
 MAPA_ANCHO_MM = 5000
 MAPA_ALTO_MM = 5000
-CELDA_MM = 100
+CELDA_MM = 50
 
 GRID_COLS = MAPA_ANCHO_MM // CELDA_MM
 GRID_ROWS = MAPA_ALTO_MM // CELDA_MM
@@ -65,7 +65,7 @@ LIDAR_YAW_INICIAL_DEG = 0.0
 # La nube del LiDAR aparece espejada en X respecto al marco real.
 # Este flag la refleja al depositarse en transform_scan_*. Pon False
 # si no tienes el problema de espejo.
-LIDAR_MIRROR_X = False
+LIDAR_MIRROR_X = False # No 
 
 # ═══════════════════════════════════════════════════════
 # ROTACIÓN DEL FRAME DEL MAPA (rota TODO, no solo visual)
@@ -75,7 +75,7 @@ LIDAR_MIRROR_X = False
 # paredes escaneadas, conos, ruta y nube quedan TODOS en el mismo frame
 # rotado. La cuadrícula visualmente rota consistentemente con los datos.
 # Tecla Z permite recalibrar en vivo (captura el yaw actual como 0°).
-FRAME_ROTATION_DEG = 0.0
+FRAME_ROTATION_DEG = 90.0
 
 
 # Build simplificada activa: navegación basada en LiDAR + giroscopio.
@@ -86,9 +86,9 @@ SIMPLIFIED_ROUTE_BUILD = True
 # GEOMETRÍA DEL ROBOT
 # Referencia = centro del LiDAR
 # ==========================================
-ROBOT_LARGO_MM = 590
-ROBOT_ANCHO_MM = 400
-DIST_LIDAR_FRENTE_MM = 150
+ROBOT_LARGO_MM = 640
+ROBOT_ANCHO_MM = 460
+DIST_LIDAR_FRENTE_MM = 180
 DIST_LIDAR_ATRAS_MM = ROBOT_LARGO_MM - DIST_LIDAR_FRENTE_MM
 MITAD_ANCHO_MM = ROBOT_ANCHO_MM / 2
 
@@ -97,7 +97,7 @@ OFFSET_LIDAR_FISICO = 186.0
 # ==========================================
 # ODOMETRÍA / ESTIMACIÓN DE POSE
 # ==========================================
-WHEEL_TRACK_MM     = 395.0   # separación centro-centro ruedas motrices (medida real)
+WHEEL_TRACK_MM     = 400.0   # separación centro-centro ruedas motrices (medida real)
 
 # ── Encoders AS5600 ──────────────────────────────────
 # Mide el diámetro real con cinta métrica:
@@ -151,7 +151,7 @@ MATCH_TURN_SETTLE_TICKS     = 2       # ticks de espera tras parar giro
 
 # Segmentación de hits
 SEG_CLUSTER_GAP_MM   = 200.0  # distancia máx entre hits consecutivos del mismo segmento
-SEG_MIN_POINTS       = 5      # puntos mínimos para analizar un segmento
+SEG_MIN_POINTS       = 8      # puntos mínimos para analizar un segmento
 SEG_LINE_RESIDUAL_MM = 55.0   # residual máx RMS para considerar segmento "recto" (pared)
                                # por encima → irregular → objeto dinámico
 
@@ -182,7 +182,7 @@ COLOR_PATH_BLOCKED   = (200,  50,  50)
 PATRON_NINGUNO   = "NINGUNO"
 PATRON_MATRICIAL = "MATRICIAL"
 PATRON_ESPIRAL   = "ESPIRAL"
-PATRON_BOWTIE    = "BOW-TIE"
+PATRON_BOWTIE    = "BOW-TIE" # Me gustaria simplificar este
 
 PATRONES_CICLO   = [PATRON_NINGUNO, PATRON_MATRICIAL,
                     PATRON_ESPIRAL, PATRON_BOWTIE]
@@ -192,7 +192,7 @@ PATRONES_CICLO   = [PATRON_NINGUNO, PATRON_MATRICIAL,
 PASO_LIMPIEZA_MM = 440   # mm  (= RADIO_LIMPIEZA_MM * 2)
 
 # Margen desde las paredes para no chocar
-MARGEN_PARED_MM  = 450
+MARGEN_PARED_MM  = 250
 
 # Radio de giro efectivo para filtrado de waypoints:
 # el robot necesita girar al final de cada fila sin que su cono
@@ -212,7 +212,7 @@ COLOR_PATRON = {
 # ==========================================
 # REPLANNING DE LIMPIEZA
 # ==========================================
-CLEAN_THRESHOLD_DEFAULT = 90.0   # % de cobertura para considerar "limpio"
+CLEAN_THRESHOLD_DEFAULT = 70.0   # % de cobertura para considerar "limpio"
 CLEAN_THRESHOLD_STEP    =  5.0   # paso al ajustar con [ / ]
 CLEAN_THRESHOLD_MIN     = 25.0
 CLEAN_THRESHOLD_MAX     = 100.0
@@ -228,7 +228,7 @@ COLOR_THRESH_WARN = (255, 180,  60)
 # ==========================================
 # CÁMARA FRONTAL — ROI Y VISIÓN
 # ==========================================
-CAM_INDEX            = 0        # índice de la cámara (0 = primera disponible)
+CAM_INDEX            = 1        # índice de la cámara (0 = primera disponible)
 CAM_WIDTH_PX         = 640
 CAM_HEIGHT_PX        = 480
 CAM_FPS              = 30
@@ -247,21 +247,21 @@ CAM_MEDIUM_RATIO     = 0.40     # 0.40–0.70       → MEDIO  /  <0.40 → SUCI
 CAM_EMA_ALPHA        = 0.30
 
 # PWM auxiliar adaptativo por nivel de suciedad
-CAM_PWM_CLEAN        = 80
-CAM_PWM_MEDIUM       = 160
-CAM_PWM_DIRTY        = 255
+CAM_PWM_CLEAN        = 60
+CAM_PWM_MEDIUM       = 100
+CAM_PWM_DIRTY        = 180
 
 # Etiquetas
-CAM_LABEL_CLEAN  = "LIMPIO"
+CAM_LABEL_CLEAN  = "SUCIO"
 CAM_LABEL_MEDIUM = "MEDIO"
-CAM_LABEL_DIRTY  = "SUCIO"
+CAM_LABEL_DIRTY  = "LIMPIO"
 
 # Colores del ROI en el mapa
 COLOR_ROI_BORDER      = (  0, 230, 100)   # verde — ROI frontal
 COLOR_REAR_ROI_BORDER = (200, 100, 255)   # morado — ROI trasero
 
 # ── Cámara trasera ────────────────────────────────────
-CAM_REAR_INDEX              = 1
+CAM_REAR_INDEX              = 2
 CAM_REAR_ROI_OFFSET_MM      = 40.0
 CAM_REAR_ROI_LARGO_MM       = 50.0
 CAM_REAR_ROI_ANCHO_MM       = 110.0
@@ -283,7 +283,7 @@ CAM_REAR_PREVIEW_H = 56
 # LIDAR
 # ==========================================
 LIDAR_MIN_MM = 30
-LIDAR_MAX_MM = 12000
+LIDAR_MAX_MM = 8000
 
 LIDAR_BIN_DEG = 1.0
 LIDAR_TTL_S = 0.45
@@ -294,8 +294,8 @@ LIDAR_EMA_ALPHA = 0.35
 # ==========================================
 # CONTROL MANUAL
 # ==========================================
-PWM_BASE = 100
-PWM_GIRO = 80
+PWM_BASE = 150
+PWM_GIRO = 90
 PWM_STEP = 5
 PWM_MIN = 35
 PWM_MAX = 180
@@ -327,7 +327,7 @@ COLOR_MODE_SCAN      = (255, 130,  50)   # naranja — modo scan en panel
 
 # Waypoints
 WP_RADIO_PX        = 7    # radio del círculo de cada waypoint en pantalla
-WP_REACH_MM        = 150  # distancia para considerar waypoint alcanzado
+WP_REACH_MM        = 200  # distancia para considerar waypoint alcanzado
 COLOR_RUTA_LINE    = (255, 200,  50)
 COLOR_WP_NORMAL    = (255, 160,  30)
 COLOR_WP_ACTIVE    = ( 80, 220, 255)
@@ -427,7 +427,7 @@ REAR_MAX_DIST_MM    = 400.0   # distancia máxima considerada peligrosa atrás
 REAR_MIN_HITS       = 4       # hits mínimos en cono trasero para bloquearlo
 
 # Retroceso controlado
-BACKUP_DIST_MM      = 350.0   # distancia máxima de retroceso (mm)
+BACKUP_DIST_MM      = 200.0   # distancia máxima de retroceso (mm)
 
 # ═══════════════════════════════════════════════════════
 # MODO LiDAR-ONLY (encoders desactivados)
@@ -495,7 +495,7 @@ ROUTE_MARGIN_CELLS     = 5       # margen configurable desde paredes (celdas)
 # ═══════════════════════════════════════════════════════
 # REPLAN POR FILAS SUCIAS
 # ═══════════════════════════════════════════════════════
-DIRT_REPLAN_MIN_TILES_PER_ROW = 2  # filas con ≥N tiles sucios/medios → limpiar
+DIRT_REPLAN_MIN_TILES_PER_ROW = 3  # filas con ≥N tiles sucios/medios → limpiar
 
 # ═══════════════════════════════════════════════════════
 # AJUSTE ANGULAR DE POSE/NUBE (mapa fijo, datos escaneados ya depositados no rotan)
@@ -512,28 +512,28 @@ FRAME_ROT_COARSE_DEG  = 10.0   # Shift+Q/E ajustan pose + conos + nube ±10°
 # ═══════════════════════════════════════════════════════
 # El cuerpo real del robot está rotado respecto al frame base del LiDAR.
 # Este offset afecta SOLO al chasis/ROIs/conos/movimiento, no a la nube.
-BODY_FRAME_OFFSET_DEG = -90.0
+BODY_FRAME_OFFSET_DEG = 0.0
 
 # ANTI-STUCK (detección de atascamiento y skip de WP)
 # ═══════════════════════════════════════════════════════
 STUCK_ALIGN_TICKS        = 90       # ticks en ALIGN sin éxito (≈3s a 30FPS)
 STUCK_POSE_CHANGE_MM     = 50.0     # mm mínimos de movimiento en ventana
 STUCK_POSE_WINDOW_TICKS  = 300      # ventana de observación (~10s)
-STUCK_MAX_ATTEMPTS       = 3        # intentos por WP antes de skip permanente
-STUCK_BACKUP_MM          = 300.0    # mm de retroceso al detectar stuck
+STUCK_MAX_ATTEMPTS       = 6        # intentos por WP antes de skip permanente
+STUCK_BACKUP_MM          = 100.0    # mm de retroceso al detectar stuck
 STUCK_BYPASS_DIST_MM     = 2000.0   # saltar WP si siguiente está a esta dist máxima
 
 # ═══════════════════════════════════════════════════════
 # CATTLE TRACKING (vacas como objetos con velocidad)
 # ═══════════════════════════════════════════════════════
-CATTLE_CLUSTER_RADIUS_MM = 350.0   # hits dentro de este radio → mismo cluster
+CATTLE_CLUSTER_RADIUS_MM = 100.0   # hits dentro de este radio → mismo cluster
 CATTLE_MIN_HITS          = 3       # mínimo de hits dinámicos para formar track
-CATTLE_MATCH_RADIUS_MM   = 600.0   # distancia máx para asociar entre frames
+CATTLE_MATCH_RADIUS_MM   = 300.0   # distancia máx para asociar entre frames
 CATTLE_TRACK_TTL_TICKS   = 45      # ticks sin match → drop track (~1.5s)
 CATTLE_VEL_EMA_ALPHA     = 0.4     # suavizado de velocidad
-CATTLE_PREDICT_HORIZON_S = 2.5     # horizonte de predicción (segundos)
-CATTLE_AVOID_RADIUS_MM   = 500.0   # expand buffer para evasión
-CATTLE_MAX_SPEED_MM_S    = 2500.0  # velocidad máxima plausible (filtra ruido)
+CATTLE_PREDICT_HORIZON_S = 1.5     # horizonte de predicción (segundos)
+CATTLE_AVOID_RADIUS_MM   = 350.0   # expand buffer para evasión
+CATTLE_MAX_SPEED_MM_S    = 1500.0  # velocidad máxima plausible (filtra ruido)
 
 # ═══════════════════════════════════════════════════════
 # ZONAS NO-GO (polígonos prohibidos dibujados por el usuario)
@@ -573,7 +573,7 @@ COLOR_HOME_WP = (255, 100, 220)
 # ALERTA DINÁMICA
 # ==========================================
 RADIO_ALERTA_DINAMICA_MM = 400.0
-UMBRAL_PUNTOS_DINAMICOS = 6
+UMBRAL_PUNTOS_DINAMICOS = 8
 
 # ==========================================
 # COLORES
@@ -765,6 +765,20 @@ def dirt_to_aux_pwm(dirt_ratio, comp_on=False, comp_pwm=0):
     return pwm
 
 
+# ── Convención angular del robot ─────────────────────────────────────
+# En este proyecto el heading 0° apunta hacia ARRIBA del mapa (+Y).
+# Por eso el vector forward usa sin para X y cos para Y.
+def heading_forward_lateral(yaw_deg):
+    yaw_rad = math.radians(yaw_deg)
+    sin_y = math.sin(yaw_rad)
+    cos_y = math.cos(yaw_rad)
+    fwd = (sin_y, cos_y)
+    lat = (-cos_y, sin_y)
+    return fwd, lat
+
+def heading_from_vector_deg(dx, dy):
+    return math.degrees(math.atan2(dx, dy))
+
 # ── Funciones de ROI en mapa ──────────────────────────────────────
 
 def compute_roi_corners(lidar_x_mm, lidar_y_mm, yaw_deg,
@@ -778,13 +792,8 @@ def compute_roi_corners(lidar_x_mm, lidar_y_mm, yaw_deg,
 
     Retorna lista de 4 tuplas (x_mm, y_mm) en orden: TL, TR, BR, BL.
     """
-    yaw_rad  = math.radians(yaw_deg)
-    cos_y    = math.cos(yaw_rad)
-    sin_y    = math.sin(yaw_rad)
-
-    # Vector unitario adelante y lateral
-    fwd  = (cos_y,  sin_y)
-    lat  = (-sin_y, cos_y)   # perpendicular izquierda
+    # Vector unitario adelante y lateral usando convención 0° = arriba
+    fwd, lat = heading_forward_lateral(yaw_deg)
 
     # Centro frontal del ROI (borde delantero)
     cx = lidar_x_mm + fwd[0] * front_offset_mm
@@ -817,12 +826,8 @@ def compute_rear_roi_corners(lidar_x_mm, lidar_y_mm, yaw_deg,
     Apunta en dirección opuesta al heading — observa lo que ya pasó el robot.
     Retorna lista de 4 tuplas (x_mm, y_mm): TL, TR, BR, BL.
     """
-    # Dirección trasera = -heading
-    rear_yaw_rad = math.radians(yaw_deg + 180.0)
-    cos_r = math.cos(rear_yaw_rad)
-    sin_r = math.sin(rear_yaw_rad)
-    fwd   = (cos_r, sin_r)
-    lat   = (-sin_r, cos_r)
+    # Dirección trasera = -heading, misma convención angular del robot
+    fwd, lat = heading_forward_lateral(yaw_deg + 180.0)
 
     cx = lidar_x_mm + fwd[0] * rear_offset_mm
     cy = lidar_y_mm + fwd[1] * rear_offset_mm
@@ -3348,9 +3353,9 @@ def odometry_step(x_mm, y_mm, yaw_deg, pl_cmd, pr_cmd, dt):
     v_l = pwm_to_vel(pl_cmd)
     v_r = pwm_to_vel(pr_cmd)
     v_linear = (v_l + v_r) * 0.5
-    yaw_rad = math.radians(yaw_deg)
-    new_x = clamp(x_mm + v_linear * math.cos(yaw_rad) * dt, 0.0, float(MAPA_ANCHO_MM))
-    new_y = clamp(y_mm + v_linear * math.sin(yaw_rad) * dt, 0.0, float(MAPA_ALTO_MM))
+    fwd, _ = heading_forward_lateral(yaw_deg)
+    new_x = clamp(x_mm + v_linear * fwd[0] * dt, 0.0, float(MAPA_ANCHO_MM))
+    new_y = clamp(y_mm + v_linear * fwd[1] * dt, 0.0, float(MAPA_ALTO_MM))
     return new_x, new_y
 
 
@@ -3560,7 +3565,7 @@ def check_frontal_obstacle(dynamic_hits, robot_x, robot_y, yaw_deg):
         if d > FRONT_MAX_DIST_MM:
             continue
 
-        ang_to_hit  = math.atan2(dy, dx)
+        ang_to_hit  = math.atan2(dx, dy)
         ang_diff    = abs(math.atan2(
             math.sin(ang_to_hit - yaw_rad),
             math.cos(ang_to_hit - yaw_rad)
@@ -3636,7 +3641,7 @@ def check_rear_obstacle(all_hits_global, robot_x, robot_y, yaw_deg):
         if d > REAR_MAX_DIST_MM:
             continue
 
-        ang_to_hit = math.atan2(dy, dx)
+        ang_to_hit = math.atan2(dx, dy)
         ang_diff   = abs(math.atan2(
             math.sin(ang_to_hit - rear_yaw_rad),
             math.cos(ang_to_hit - rear_yaw_rad)
@@ -4297,7 +4302,7 @@ def follow_route_step(robot_x, robot_y, yaw_deg,
     dx = target_x - robot_x
     dy = target_y - robot_y
     dist_mm = math.hypot(dx, dy)
-    target_heading = math.degrees(math.atan2(dy, dx))
+    target_heading = heading_from_vector_deg(dx, dy)
     heading_error = _normalize_angle(target_heading - yaw_deg)
 
     align_pwm = pwm_align if pwm_align is not None else PWM_FOLLOWER_ALIGN
@@ -5262,9 +5267,9 @@ def main():
                 # tile sucio → ir más lento para limpiar mejor.
                 if DIRT_GRID_ENABLED and modo == MODE_RUTA:
                     look_dist = LOOKAHEAD_CELLS_DIRT * grid_map.cell_mm
-                    yaw_r = math.radians(yaw_deg_motion)
-                    look_x = lidar_x_mm + look_dist * math.cos(yaw_r)
-                    look_y = lidar_y_mm + look_dist * math.sin(yaw_r)
+                    fwd_look, _ = heading_forward_lateral(yaw_deg_motion)
+                    look_x = lidar_x_mm + look_dist * fwd_look[0]
+                    look_y = lidar_y_mm + look_dist * fwd_look[1]
                     dirt_val = grid_map.get_dirt_cell(look_x, look_y)
                     if dirt_val >= DIRT_THRESHOLD_MEDIUM:
                         dirt_mult = SPEED_MULT_DIRTY
@@ -5334,7 +5339,7 @@ def main():
                         # Heading objetivo: el opuesto al vector home→robot
                         # (robot queda con espalda al home → yaw + 180° respecto
                         # al vector robot→home)
-                        target_heading = math.degrees(math.atan2(dy_h, dx_h))
+                        target_heading = heading_from_vector_deg(dx_h, dy_h)
                         reverse_heading = target_heading + 180.0
                         heading_error = _normalize_angle(reverse_heading - yaw_deg_motion)
 

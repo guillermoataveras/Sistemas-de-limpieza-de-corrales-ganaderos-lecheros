@@ -1,9 +1,4 @@
 import math
-
-# Calculadas tras definir WHEEL_DIAMETER_MM (al final del bloque de constantes)
-# Se definen aquí como forward-declaration; se sobrescriben abajo
-WHEEL_CIRCUM_MM  = math.pi * 76.2   # perímetro rueda (actualizar si cambia WHEEL_DIAMETER_MM)
-MM_PER_DEG_WHEEL = WHEEL_CIRCUM_MM / 360.0  # mm por grado de giro del eje
 import time
 import struct
 import threading
@@ -43,11 +38,11 @@ FPS_DIBUJO = 20
 INTERVALO_DIBUJO = 1.0 / FPS_DIBUJO
 
 # ==========================================
-# MAPA FIJO 8x8 m
+# MAPA FIJO 5x5 m
 # ==========================================
 MAPA_ANCHO_MM = 5000
 MAPA_ALTO_MM = 5000
-CELDA_MM = 100
+CELDA_MM = 50
 
 GRID_COLS = MAPA_ANCHO_MM // CELDA_MM
 GRID_ROWS = MAPA_ALTO_MM // CELDA_MM
@@ -65,7 +60,7 @@ LIDAR_YAW_INICIAL_DEG = 0.0
 # La nube del LiDAR aparece espejada en X respecto al marco real.
 # Este flag la refleja al depositarse en transform_scan_*. Pon False
 # si no tienes el problema de espejo.
-LIDAR_MIRROR_X = False
+LIDAR_MIRROR_X = False # No 
 
 # ═══════════════════════════════════════════════════════
 # ROTACIÓN DEL FRAME DEL MAPA (rota TODO, no solo visual)
@@ -75,40 +70,49 @@ LIDAR_MIRROR_X = False
 # paredes escaneadas, conos, ruta y nube quedan TODOS en el mismo frame
 # rotado. La cuadrícula visualmente rota consistentemente con los datos.
 # Tecla Z permite recalibrar en vivo (captura el yaw actual como 0°).
-FRAME_ROTATION_DEG = 0.0
+FRAME_ROTATION_DEG = 90.0
 
 
 # Build simplificada activa: navegación basada en LiDAR + giroscopio.
-# Los caminos de encoders se mantienen solo como stubs de compatibilidad.
 SIMPLIFIED_ROUTE_BUILD = True
 
 # ==========================================
 # GEOMETRÍA DEL ROBOT
 # Referencia = centro del LiDAR
 # ==========================================
-ROBOT_LARGO_MM = 590
-ROBOT_ANCHO_MM = 400
-DIST_LIDAR_FRENTE_MM = 150
+ROBOT_LARGO_MM = 640
+ROBOT_ANCHO_MM = 460
+DIST_LIDAR_FRENTE_MM = 180
 DIST_LIDAR_ATRAS_MM = ROBOT_LARGO_MM - DIST_LIDAR_FRENTE_MM
 MITAD_ANCHO_MM = ROBOT_ANCHO_MM / 2
 
 OFFSET_LIDAR_FISICO = 186.0
 
+# ═══════════════════════════════════════════════════════
+# CUADRADO DE REFERENCIA (DIAGNÓSTICO)
+# ═══════════════════════════════════════════════════════
+# Cuadrado fijo en el mapa que representa un "corral de prueba" real,
+# centrado en la posición inicial del robot. Sirve para:
+#   - Verificar que la nube LiDAR calza con las paredes reales conocidas
+#   - Validar visualmente la rotación de pose (tecla G)
+#   - A futuro: ser el mapa de referencia para el scan matching (Fase 3)
+#
+# Está centrado en el CENTRO DEL CUERPO del robot en pose inicial
+# (no en el LiDAR, que está descentrado). Esto se calcula al arrancar
+# en main() y queda fijo para toda la sesión.
+#
+# Tecla F4: toggle visibilidad
+REFERENCE_SQUARE_ENABLED   = True       # mostrar por defecto
+REFERENCE_SQUARE_SIDE_MM   = 2200.0     # lado del cuadrado (2.2 m)
+COLOR_REF_SQUARE           = (80, 255, 255)    # cian brillante
+COLOR_REF_SQUARE_FILL      = (80, 255, 255, 10)  # relleno semitransparente
+
 # ==========================================
 # ODOMETRÍA / ESTIMACIÓN DE POSE
 # ==========================================
-WHEEL_TRACK_MM     = 395.0   # separación centro-centro ruedas motrices (medida real)
+WHEEL_TRACK_MM     = 400.0   # separación centro-centro ruedas motrices (medida real)
 
-# ── Encoders AS5600 ──────────────────────────────────
-# Mide el diámetro real con cinta métrica:
-# marca la rueda, hazla rodar 1 vuelta completa → mide la distancia → diámetro = dist/π
-WHEEL_DIAMETER_MM  = 76.2    # ← CALIBRAR con cinta métrica
-# WHEEL_CIRCUM_MM se calcula después de importar math (ver abajo)
-
-# Umbral mínimo de delta (deg) para considerar que la rueda se movió
-ENC_DELTA_THRESHOLD_DEG = 0.5
-
-# Fallback PWM (activo solo si no hay datos de encoder disponibles)
+# Dead reckoning por PWM (único método de predicción de pose entre ticks de LiDAR)
 VEL_MM_PER_PWM     = 3.5
 PWM_VEL_THRESHOLD  = 20
 
@@ -127,14 +131,8 @@ MATCH_MIN_PAIRS         = 8      # pares mínimos para confiar en el resultado
 MATCH_ALPHA             = 0.40   # fracción de corrección aplicada por llamada
 MATCH_MAX_CORRECTION_MM = 120.0  # corrección máxima por llamada (anti-salto)
 
-# ═══════════════════════════════════════════════════════
-# YAW ICP (corrección angular del scan contra el mapa)
-# ═══════════════════════════════════════════════════════
-YAW_ICP_ENABLED             = True     # habilita la corrección de yaw
-YAW_ICP_MAX_CORRECTION_DEG  = 4.0      # corrección máx por llamada (grados)
-YAW_ICP_ALPHA               = 0.35     # fracción aplicada (damping)
-YAW_ICP_MIN_PAIRS           = 10       # pares mínimos para confiar en yaw
-YAW_ICP_CONV_THRESH_DEG     = 0.15     # umbral de convergencia por iteración
+# Nota: el yaw NUNCA se corrige por scan matching. Siempre viene del
+# giroscopio (MPU9250 vía Arduino). El matching solo corrige posición XY.
 
 # ═══════════════════════════════════════════════════════
 # MATCHING PAUSE DURANTE GIROS
@@ -151,7 +149,7 @@ MATCH_TURN_SETTLE_TICKS     = 2       # ticks de espera tras parar giro
 
 # Segmentación de hits
 SEG_CLUSTER_GAP_MM   = 200.0  # distancia máx entre hits consecutivos del mismo segmento
-SEG_MIN_POINTS       = 5      # puntos mínimos para analizar un segmento
+SEG_MIN_POINTS       = 8      # puntos mínimos para analizar un segmento
 SEG_LINE_RESIDUAL_MM = 55.0   # residual máx RMS para considerar segmento "recto" (pared)
                                # por encima → irregular → objeto dinámico
 
@@ -182,7 +180,7 @@ COLOR_PATH_BLOCKED   = (200,  50,  50)
 PATRON_NINGUNO   = "NINGUNO"
 PATRON_MATRICIAL = "MATRICIAL"
 PATRON_ESPIRAL   = "ESPIRAL"
-PATRON_BOWTIE    = "BOW-TIE"
+PATRON_BOWTIE    = "BOW-TIE" # Me gustaria simplificar este
 
 PATRONES_CICLO   = [PATRON_NINGUNO, PATRON_MATRICIAL,
                     PATRON_ESPIRAL, PATRON_BOWTIE]
@@ -192,7 +190,7 @@ PATRONES_CICLO   = [PATRON_NINGUNO, PATRON_MATRICIAL,
 PASO_LIMPIEZA_MM = 440   # mm  (= RADIO_LIMPIEZA_MM * 2)
 
 # Margen desde las paredes para no chocar
-MARGEN_PARED_MM  = 450
+MARGEN_PARED_MM  = 250
 
 # Radio de giro efectivo para filtrado de waypoints:
 # el robot necesita girar al final de cada fila sin que su cono
@@ -212,7 +210,7 @@ COLOR_PATRON = {
 # ==========================================
 # REPLANNING DE LIMPIEZA
 # ==========================================
-CLEAN_THRESHOLD_DEFAULT = 90.0   # % de cobertura para considerar "limpio"
+CLEAN_THRESHOLD_DEFAULT = 70.0   # % de cobertura para considerar "limpio"
 CLEAN_THRESHOLD_STEP    =  5.0   # paso al ajustar con [ / ]
 CLEAN_THRESHOLD_MIN     = 25.0
 CLEAN_THRESHOLD_MAX     = 100.0
@@ -228,7 +226,7 @@ COLOR_THRESH_WARN = (255, 180,  60)
 # ==========================================
 # CÁMARA FRONTAL — ROI Y VISIÓN
 # ==========================================
-CAM_INDEX            = 0        # índice de la cámara (0 = primera disponible)
+CAM_INDEX            = 1        # índice de la cámara (0 = primera disponible)
 CAM_WIDTH_PX         = 640
 CAM_HEIGHT_PX        = 480
 CAM_FPS              = 30
@@ -247,21 +245,21 @@ CAM_MEDIUM_RATIO     = 0.40     # 0.40–0.70       → MEDIO  /  <0.40 → SUCI
 CAM_EMA_ALPHA        = 0.30
 
 # PWM auxiliar adaptativo por nivel de suciedad
-CAM_PWM_CLEAN        = 80
-CAM_PWM_MEDIUM       = 160
-CAM_PWM_DIRTY        = 255
+CAM_PWM_CLEAN        = 60
+CAM_PWM_MEDIUM       = 100
+CAM_PWM_DIRTY        = 180
 
 # Etiquetas
-CAM_LABEL_CLEAN  = "LIMPIO"
+CAM_LABEL_CLEAN  = "SUCIO"
 CAM_LABEL_MEDIUM = "MEDIO"
-CAM_LABEL_DIRTY  = "SUCIO"
+CAM_LABEL_DIRTY  = "LIMPIO"
 
 # Colores del ROI en el mapa
 COLOR_ROI_BORDER      = (  0, 230, 100)   # verde — ROI frontal
 COLOR_REAR_ROI_BORDER = (200, 100, 255)   # morado — ROI trasero
 
 # ── Cámara trasera ────────────────────────────────────
-CAM_REAR_INDEX              = 1
+CAM_REAR_INDEX              = 2
 CAM_REAR_ROI_OFFSET_MM      = 40.0
 CAM_REAR_ROI_LARGO_MM       = 50.0
 CAM_REAR_ROI_ANCHO_MM       = 110.0
@@ -283,7 +281,7 @@ CAM_REAR_PREVIEW_H = 56
 # LIDAR
 # ==========================================
 LIDAR_MIN_MM = 30
-LIDAR_MAX_MM = 12000
+LIDAR_MAX_MM = 8000
 
 LIDAR_BIN_DEG = 1.0
 LIDAR_TTL_S = 0.45
@@ -294,8 +292,8 @@ LIDAR_EMA_ALPHA = 0.35
 # ==========================================
 # CONTROL MANUAL
 # ==========================================
-PWM_BASE = 100
-PWM_GIRO = 80
+PWM_BASE = 150
+PWM_GIRO = 90
 PWM_STEP = 5
 PWM_MIN = 35
 PWM_MAX = 180
@@ -327,7 +325,7 @@ COLOR_MODE_SCAN      = (255, 130,  50)   # naranja — modo scan en panel
 
 # Waypoints
 WP_RADIO_PX        = 7    # radio del círculo de cada waypoint en pantalla
-WP_REACH_MM        = 150  # distancia para considerar waypoint alcanzado
+WP_REACH_MM        = 200  # distancia para considerar waypoint alcanzado
 COLOR_RUTA_LINE    = (255, 200,  50)
 COLOR_WP_NORMAL    = (255, 160,  30)
 COLOR_WP_ACTIVE    = ( 80, 220, 255)
@@ -387,16 +385,6 @@ RECONNECT_RETRY_S     =  1.5
 # ── Log de sesión ────────────────────────────────────
 LOG_EVERY_N_TICKS     = 30
 
-# ── Filtro de Kalman (fusión encoders + ICP) ─────────
-# Prioridad: yaw siempre viene del giroscopio (no se fusiona).
-# Solo la posición (x,y) entra al filtro.
-KALMAN_Q_BASE_MM2     = 4.0     # varianza de proceso base (encoders confiables)
-KALMAN_Q_SLIP_MM2     = 800.0   # varianza alta cuando hay slip (ignora encoders)
-KALMAN_R_GOOD_MM2     = 9.0     # varianza LiDAR con match de calidad alta
-KALMAN_R_BAD_MM2      = 200.0   # varianza LiDAR con match pobre
-KALMAN_P_INIT_MM2     = 25.0    # incertidumbre inicial del estado
-KALMAN_MATCH_Q_GOOD   = 60.0    # umbral de match_quality para R_GOOD
-
 # ── A* — búsqueda de camino sobre celdas limpiables ──
 ASTAR_MAX_EXPANSIONS  = 5000    # límite de nodos expandidos (seguridad)
 ASTAR_WALL_CLEARANCE  = MARGEN_PARED_MM   # celdas con pared más cerca son inválidas
@@ -427,30 +415,21 @@ REAR_MAX_DIST_MM    = 400.0   # distancia máxima considerada peligrosa atrás
 REAR_MIN_HITS       = 4       # hits mínimos en cono trasero para bloquearlo
 
 # Retroceso controlado
-BACKUP_DIST_MM      = 350.0   # distancia máxima de retroceso (mm)
+BACKUP_DIST_MM      = 200.0   # distancia máxima de retroceso (mm)
 
 # ═══════════════════════════════════════════════════════
-# MODO LiDAR-ONLY (encoders desactivados)
+# MODO OPERATIVO LiDAR-ONLY
 # ═══════════════════════════════════════════════════════
-# Cuando USE_ENCODERS = False:
-#   - Los encoders se ignoran completamente
-#   - La odometría se predice con PWM × VEL_MM_PER_PWM
-#   - El LiDAR corre más rápido (MATCH cada 2 ticks)
-#   - ICP hace más iteraciones para mayor precisión
-#   - Se reduce el PWM base para dar tiempo al LiDAR a seguir
-#   - Kalman confía más en el LiDAR (R bajo) y menos en la predicción (Q alto)
+# El robot se mueve más despacio para que el LiDAR pueda seguir
+# la pose con precisión. Estos valores sustituyen directamente a
+# los defaults genéricos cuando se aplican al follower / matching.
 
-USE_ENCODERS              = False   # True = híbrido, False = LiDAR-only
-
-LIDAR_ONLY_PWM_BASE       = 50      # PWM base en modo LiDAR-only
-LIDAR_ONLY_MATCH_EVERY    = 1       # ICP cada 2 ticks (~15 Hz a 30 FPS)
-LIDAR_ONLY_ICP_ITERS      = 4       # más iteraciones sin encoders
-LIDAR_ONLY_Q_MM2          = 100.0   # Kalman Q alto (predicción PWM imprecisa)
-LIDAR_ONLY_R_GOOD         = 4.0     # Kalman R bajo (LiDAR muy confiable)
-LIDAR_ONLY_R_BAD          = 150.0   # R cuando match_quality baja
-LIDAR_ONLY_SLOW_MULT      = 1.3     # zonas de slowdown 30% más amplias
-LIDAR_ONLY_FOLLOW_ALIGN   = 70      # follower PWM align (en vez de 65)
-LIDAR_ONLY_FOLLOW_ADVANCE = 85      # follower PWM advance (en vez de 85)
+OP_PWM_BASE        = 50      # PWM base de avance en ruta
+OP_MATCH_EVERY     = 1       # matching cada N ticks (1 = cada tick)
+OP_ICP_ITERS       = 4       # iteraciones de ICP por llamada
+OP_SLOW_MULT       = 1.3     # zonas de slowdown 30% más amplias
+OP_FOLLOW_ALIGN    = 70      # follower PWM align
+OP_FOLLOW_ADVANCE  = 85      # follower PWM advance
 
 # ═══════════════════════════════════════════════════════
 # POSE DE CONTROL (PRUEBA) — LiDAR solo observa, no recoloca
@@ -495,45 +474,37 @@ ROUTE_MARGIN_CELLS     = 5       # margen configurable desde paredes (celdas)
 # ═══════════════════════════════════════════════════════
 # REPLAN POR FILAS SUCIAS
 # ═══════════════════════════════════════════════════════
-DIRT_REPLAN_MIN_TILES_PER_ROW = 2  # filas con ≥N tiles sucios/medios → limpiar
+DIRT_REPLAN_MIN_TILES_PER_ROW = 3  # filas con ≥N tiles sucios/medios → limpiar
 
 # ═══════════════════════════════════════════════════════
-# AJUSTE ANGULAR DE POSE/NUBE (mapa fijo, datos escaneados ya depositados no rotan)
+# AJUSTE ANGULAR DEL OFFSET DE YAW
 # ═══════════════════════════════════════════════════════
-BODY_POSE_FINE_DEG    =  1.0   # J/K ajustan el cuerpo representado ±1° (con T armado)
-BODY_POSE_COARSE_DEG  =  5.0   # Shift+J/K ajustan el cuerpo representado ±5° (con T armado)
-FRAME_ROT_FINE_DEG    =  1.0   # Q/E ajustan pose + conos + nube ±1°
-FRAME_ROT_COARSE_DEG  = 10.0   # Shift+Q/E ajustan pose + conos + nube ±10°
+# Teclas Q/E ajustan saved_yaw_offset (único offset de yaw tras Fase 2)
+FRAME_ROT_FINE_DEG    =  1.0   # Q/E ajustan ±1°
+FRAME_ROT_COARSE_DEG  = 10.0   # Shift+Q/E ajustan ±10°
 
 # ═══════════════════════════════════════════════════════
-
-# ═══════════════════════════════════════════════════════
-# FRAME GEOMÉTRICO DEL CHASIS (separado del frame LiDAR)
-# ═══════════════════════════════════════════════════════
-# El cuerpo real del robot está rotado respecto al frame base del LiDAR.
-# Este offset afecta SOLO al chasis/ROIs/conos/movimiento, no a la nube.
-BODY_FRAME_OFFSET_DEG = -90.0
 
 # ANTI-STUCK (detección de atascamiento y skip de WP)
 # ═══════════════════════════════════════════════════════
 STUCK_ALIGN_TICKS        = 90       # ticks en ALIGN sin éxito (≈3s a 30FPS)
 STUCK_POSE_CHANGE_MM     = 50.0     # mm mínimos de movimiento en ventana
 STUCK_POSE_WINDOW_TICKS  = 300      # ventana de observación (~10s)
-STUCK_MAX_ATTEMPTS       = 3        # intentos por WP antes de skip permanente
-STUCK_BACKUP_MM          = 300.0    # mm de retroceso al detectar stuck
+STUCK_MAX_ATTEMPTS       = 6        # intentos por WP antes de skip permanente
+STUCK_BACKUP_MM          = 100.0    # mm de retroceso al detectar stuck
 STUCK_BYPASS_DIST_MM     = 2000.0   # saltar WP si siguiente está a esta dist máxima
 
 # ═══════════════════════════════════════════════════════
 # CATTLE TRACKING (vacas como objetos con velocidad)
 # ═══════════════════════════════════════════════════════
-CATTLE_CLUSTER_RADIUS_MM = 350.0   # hits dentro de este radio → mismo cluster
+CATTLE_CLUSTER_RADIUS_MM = 100.0   # hits dentro de este radio → mismo cluster
 CATTLE_MIN_HITS          = 3       # mínimo de hits dinámicos para formar track
-CATTLE_MATCH_RADIUS_MM   = 600.0   # distancia máx para asociar entre frames
+CATTLE_MATCH_RADIUS_MM   = 300.0   # distancia máx para asociar entre frames
 CATTLE_TRACK_TTL_TICKS   = 45      # ticks sin match → drop track (~1.5s)
 CATTLE_VEL_EMA_ALPHA     = 0.4     # suavizado de velocidad
-CATTLE_PREDICT_HORIZON_S = 2.5     # horizonte de predicción (segundos)
-CATTLE_AVOID_RADIUS_MM   = 500.0   # expand buffer para evasión
-CATTLE_MAX_SPEED_MM_S    = 2500.0  # velocidad máxima plausible (filtra ruido)
+CATTLE_PREDICT_HORIZON_S = 1.5     # horizonte de predicción (segundos)
+CATTLE_AVOID_RADIUS_MM   = 350.0   # expand buffer para evasión
+CATTLE_MAX_SPEED_MM_S    = 1500.0  # velocidad máxima plausible (filtra ruido)
 
 # ═══════════════════════════════════════════════════════
 # ZONAS NO-GO (polígonos prohibidos dibujados por el usuario)
@@ -543,8 +514,6 @@ NOGO_MIN_AREA_MM2        = 90000.0   # área mínima para registrar (≈30cm×30
 # ═══════════════════════════════════════════════════════
 # RECOVERY / WATCHDOGS DE ESTADO
 # ═══════════════════════════════════════════════════════
-KALMAN_RESET_THRESHOLD_MM   = 150.0   # σ sostenido para disparar reset+stop
-KALMAN_RESET_WINDOW_TICKS   = 150     # ticks de σ alto (~5s) antes de disparar
 STATE_BACKUP_ROTATIONS      = 3       # copias rotativas de state.json
 MAP_CORRUPT_COV_THRESHOLD   = 95.0    # coverage sin progreso ⇒ rescan sugerido
 MAP_CORRUPT_STUCK_TICKS     = 300     # ticks quieto con coverage alto
@@ -573,7 +542,7 @@ COLOR_HOME_WP = (255, 100, 220)
 # ALERTA DINÁMICA
 # ==========================================
 RADIO_ALERTA_DINAMICA_MM = 400.0
-UMBRAL_PUNTOS_DINAMICOS = 6
+UMBRAL_PUNTOS_DINAMICOS = 8
 
 # ==========================================
 # COLORES
@@ -765,6 +734,20 @@ def dirt_to_aux_pwm(dirt_ratio, comp_on=False, comp_pwm=0):
     return pwm
 
 
+# ── Convención angular del robot ─────────────────────────────────────
+# En este proyecto el heading 0° apunta hacia ARRIBA del mapa (+Y).
+# Por eso el vector forward usa sin para X y cos para Y.
+def heading_forward_lateral(yaw_deg):
+    yaw_rad = math.radians(yaw_deg)
+    sin_y = math.sin(yaw_rad)
+    cos_y = math.cos(yaw_rad)
+    fwd = (sin_y, cos_y)
+    lat = (-cos_y, sin_y)
+    return fwd, lat
+
+def heading_from_vector_deg(dx, dy):
+    return math.degrees(math.atan2(dx, dy))
+
 # ── Funciones de ROI en mapa ──────────────────────────────────────
 
 def compute_roi_corners(lidar_x_mm, lidar_y_mm, yaw_deg,
@@ -778,13 +761,8 @@ def compute_roi_corners(lidar_x_mm, lidar_y_mm, yaw_deg,
 
     Retorna lista de 4 tuplas (x_mm, y_mm) en orden: TL, TR, BR, BL.
     """
-    yaw_rad  = math.radians(yaw_deg)
-    cos_y    = math.cos(yaw_rad)
-    sin_y    = math.sin(yaw_rad)
-
-    # Vector unitario adelante y lateral
-    fwd  = (cos_y,  sin_y)
-    lat  = (-sin_y, cos_y)   # perpendicular izquierda
+    # Vector unitario adelante y lateral usando convención 0° = arriba
+    fwd, lat = heading_forward_lateral(yaw_deg)
 
     # Centro frontal del ROI (borde delantero)
     cx = lidar_x_mm + fwd[0] * front_offset_mm
@@ -817,12 +795,8 @@ def compute_rear_roi_corners(lidar_x_mm, lidar_y_mm, yaw_deg,
     Apunta en dirección opuesta al heading — observa lo que ya pasó el robot.
     Retorna lista de 4 tuplas (x_mm, y_mm): TL, TR, BR, BL.
     """
-    # Dirección trasera = -heading
-    rear_yaw_rad = math.radians(yaw_deg + 180.0)
-    cos_r = math.cos(rear_yaw_rad)
-    sin_r = math.sin(rear_yaw_rad)
-    fwd   = (cos_r, sin_r)
-    lat   = (-sin_r, cos_r)
+    # Dirección trasera = -heading, misma convención angular del robot
+    fwd, lat = heading_forward_lateral(yaw_deg + 180.0)
 
     cx = lidar_x_mm + fwd[0] * rear_offset_mm
     cy = lidar_y_mm + fwd[1] * rear_offset_mm
@@ -890,48 +864,6 @@ class HeadingPID:
     def reset(self):
         self._integral   = 0.0
         self._prev_error = 0.0
-
-
-class PoseKalmanFilter:
-    """
-    Filtro de fusión de pose simplificado para modo LiDAR-only.
-
-    Ya no usa una covarianza 2x2 ni una ganancia de Kalman formal.
-    Mantiene solo:
-      - pose predicha por PWM entre ICPs
-      - corrección suavizada cuando llega una pose LiDAR
-      - un escalar de incertidumbre para watchdog
-
-    La interfaz pública se conserva para no romper el resto del programa.
-    """
-
-    def __init__(self, x0, y0, p_init=KALMAN_P_INIT_MM2):
-        self.x = float(x0)
-        self.y = float(y0)
-        self.sigma_mm = float(max(1.0, math.sqrt(p_init)))
-
-    def predict(self, dx_mm, dy_mm, q_var_mm2=KALMAN_Q_BASE_MM2):
-        self.x += dx_mm
-        self.y += dy_mm
-        self.sigma_mm = min(300.0, math.sqrt(self.sigma_mm ** 2 + max(0.0, q_var_mm2)))
-
-    def update_lidar(self, z_x, z_y, match_quality=None, r_var_mm2=None):
-        if match_quality is None:
-            alpha = 0.55
-        else:
-            q = clamp(match_quality, 0.0, 100.0) / 100.0
-            alpha = 0.20 + 0.65 * q
-        self.x = (1.0 - alpha) * self.x + alpha * float(z_x)
-        self.y = (1.0 - alpha) * self.y + alpha * float(z_y)
-        self.sigma_mm = max(3.0, self.sigma_mm * (1.0 - 0.55 * alpha))
-
-    def uncertainty_mm(self):
-        return float(self.sigma_mm)
-
-    def reset(self, x, y, p_init=KALMAN_P_INIT_MM2):
-        self.x = float(x)
-        self.y = float(y)
-        self.sigma_mm = float(max(1.0, math.sqrt(p_init)))
 
 
 def astar_path(grid_map, start_mm, goal_mm,
@@ -1523,6 +1455,15 @@ def get_manual_drive(keys, pwm_base, pwm_turn):
 
 
 def transform_scan_to_global(angles_deg, distances_mm, lidar_x_mm, lidar_y_mm, yaw_deg):
+    """
+    Deposita los hits del LiDAR en coordenadas globales del mapa (mm).
+
+    El punto local (xl, yl) se interpreta como (adelante, lateral_izq) del
+    sensor y se rota al mapa usando la convención de brújula:
+        fwd = (sin_y, cos_y)   → con yaw=0 'adelante' apunta a +Y (arriba)
+        lat = (-cos_y, sin_y)  → 'lateral izquierdo'
+    Misma convención que compute_roi_corners y draw_robot (Fase 2 fix).
+    """
     if len(distances_mm) == 0:
         return []
 
@@ -1535,10 +1476,10 @@ def transform_scan_to_global(angles_deg, distances_mm, lidar_x_mm, lidar_y_mm, y
     if LIDAR_MIRROR_X:
         xl = -xl   # refleja en X
 
-    # Rotar al marco global con yaw
-    cs, sn = np.cos(yaw_rad), np.sin(yaw_rad)
-    xg = lidar_x_mm + xl * cs - yl * sn
-    yg = lidar_y_mm + xl * sn + yl * cs
+    # Rotar al marco global con convención de brújula (fwd=sin, cos)
+    sin_y, cos_y = np.sin(yaw_rad), np.cos(yaw_rad)
+    xg = lidar_x_mm + xl * sin_y + yl * (-cos_y)
+    yg = lidar_y_mm + xl * cos_y + yl * sin_y
 
     return [(float(x), float(y)) for x, y in zip(xg, yg)]
 
@@ -1865,12 +1806,6 @@ class ArduinoSerialController:
     def get_last_dang(self):
         with self.lock:
             return self.last_dang
-
-    def get_encoder_deltas(self):
-        return 0.0, 0.0, False
-
-    def get_encoder_accum(self):
-        return 0.0, 0.0
 
     def reset_yaw_accumulator(self):
         with self.lock:
@@ -2337,7 +2272,7 @@ class GridMap:
         """
         Dibuja el avatar del robot con información extendida:
           - Rectángulo orientado (cuerpo real del robot)
-          - Halo de incertidumbre (radio = uncertainty_mm del Kalman)
+          - Halo de incertidumbre (radio = uncertainty_mm de pose)
           - Cono frontal color-codeado por speed_scale (verde/naranja/rojo)
           - Dot de sensor activo (esquina trasera del robot)
           - Migas de pan del trail (si breadcrumbs se provee)
@@ -2353,7 +2288,7 @@ class GridMap:
                 for p in pts:
                     pygame.draw.circle(screen, (140, 180, 255), p, 1)
 
-        # ── Halo de incertidumbre Kalman ───────────────────────
+        # ── Halo de incertidumbre de pose ──────────────────────
         if uncertainty_mm > 0.5:
             sx0, sy0 = self.world_to_screen(area_rect, lidar_x_mm, lidar_y_mm)
             rx, _    = self.world_to_screen(area_rect,
@@ -2374,19 +2309,32 @@ class GridMap:
                 pass
 
         # ── Cuerpo del robot ───────────────────────────────────
+        # corners_local[i] = (coord_adelante, coord_lateral)
+        #   adelante > 0  → hacia el frente del robot
+        #   lateral > 0   → hacia la izquierda del robot
         corners_local = [
             (+DIST_LIDAR_FRENTE_MM, +MITAD_ANCHO_MM),
             (+DIST_LIDAR_FRENTE_MM, -MITAD_ANCHO_MM),
             (-DIST_LIDAR_ATRAS_MM,  -MITAD_ANCHO_MM),
             (-DIST_LIDAR_ATRAS_MM,  +MITAD_ANCHO_MM),
         ]
+        # FIX Fase 2: usar la misma convención que heading_forward_lateral
+        # y compute_roi_corners para que chasis y ROIs roten coherentemente.
+        #   fwd = (sin, cos)     → con yaw=0, "adelante" apunta a +Y (arriba)
+        #   lat = (-cos, sin)    → lateral izquierdo
+        # Antes se usaba (cos, sin) para adelante, que iba 90° desfasado
+        # respecto a los ROI y al cono frontal — ese era el bug que causaba
+        # que los ROI se quedaran "en otro ángulo" cuando el robot rotaba.
         yaw_rad = math.radians(yaw_deg)
-        c = math.cos(yaw_rad); s = math.sin(yaw_rad)
+        sin_y = math.sin(yaw_rad)
+        cos_y = math.cos(yaw_rad)
+        fwd = (sin_y, cos_y)
+        lat = (-cos_y, sin_y)
 
         pts_screen = []
-        for xr, yr in corners_local:
-            xw = lidar_x_mm + xr * c - yr * s
-            yw = lidar_y_mm + xr * s + yr * c
+        for a_fwd, a_lat in corners_local:
+            xw = lidar_x_mm + a_fwd * fwd[0] + a_lat * lat[0]
+            yw = lidar_y_mm + a_fwd * fwd[1] + a_lat * lat[1]
             sx, sy = self.world_to_screen(area_rect, xw, yw)
             pts_screen.append((int(sx), int(sy)))
 
@@ -2397,8 +2345,9 @@ class GridMap:
         # ── Centro LiDAR + flecha de heading ───────────────────
         sx, sy = self.world_to_screen(area_rect, lidar_x_mm, lidar_y_mm)
         pygame.draw.circle(screen, COLOR_LIDAR_CENTER, (int(sx), int(sy)), 5)
-        hx = lidar_x_mm + 260.0 * c
-        hy = lidar_y_mm + 260.0 * s
+        # Flecha en la dirección de avance del robot (usa fwd de arriba)
+        hx = lidar_x_mm + 260.0 * fwd[0]
+        hy = lidar_y_mm + 260.0 * fwd[1]
         hsx, hsy = self.world_to_screen(area_rect, hx, hy)
         # Color del heading arrow según speed_scale
         if   speed_scale >= 0.95: head_col = (120, 255, 140)  # verde
@@ -2410,8 +2359,8 @@ class GridMap:
 
         # ── Alert circle centrado en el cuerpo ─────────────────
         body_offset = (DIST_LIDAR_FRENTE_MM - DIST_LIDAR_ATRAS_MM) / 2.0
-        body_cx = lidar_x_mm + body_offset * c
-        body_cy = lidar_y_mm + body_offset * s
+        body_cx = lidar_x_mm + body_offset * fwd[0]
+        body_cy = lidar_y_mm + body_offset * fwd[1]
         bsx, bsy = self.world_to_screen(area_rect, body_cx, body_cy)
         rx, _ = self.world_to_screen(area_rect,
                                       body_cx + RADIO_ALERTA_DINAMICA_MM,
@@ -2420,19 +2369,19 @@ class GridMap:
         pygame.draw.circle(screen, COLOR_ALERT if alert else (135, 135, 150),
                            (int(bsx), int(bsy)), radius_px, 1)
 
-        # ── Dot de sensor activo (esquina trasera) ─────────────
+        # ── Dot de sensor activo (esquina trasera izquierda) ────
         if pose_source is not None:
             src_colors = {
-                "MATCH+ENC":  (120, 255, 140),
-                "MATCH+GYRO": (255, 200,  80),
-                "ENCODERS":   (100, 200, 255),
-                "GYRO":       (255, 150,  80),
-                "NO SENSORS": (180, 180, 180),
+                "LIDAR+MATCH": (120, 255, 140),
+                "LIDAR+PWM":   (255, 200,  80),
+                "MATCH+GYRO":  (255, 200,  80),
+                "GYRO":        (255, 150,  80),
+                "NO SENSORS":  (180, 180, 180),
             }
             src_col = src_colors.get(pose_source, (180, 180, 180))
-            # Esquina trasera izquierda del robot (desde la perspectiva del robot)
-            rear_x = lidar_x_mm + (-DIST_LIDAR_ATRAS_MM) * c - MITAD_ANCHO_MM * s
-            rear_y = lidar_y_mm + (-DIST_LIDAR_ATRAS_MM) * s + MITAD_ANCHO_MM * c
+            # Esquina trasera izquierda del robot = -fwd·atrás + lat·medioAncho
+            rear_x = lidar_x_mm + (-DIST_LIDAR_ATRAS_MM) * fwd[0] + MITAD_ANCHO_MM * lat[0]
+            rear_y = lidar_y_mm + (-DIST_LIDAR_ATRAS_MM) * fwd[1] + MITAD_ANCHO_MM * lat[1]
             rsx, rsy = self.world_to_screen(area_rect, rear_x, rear_y)
             pygame.draw.circle(screen, src_col, (int(rsx), int(rsy)), 4)
             pygame.draw.circle(screen, (20, 20, 30), (int(rsx), int(rsy)), 4, 1)
@@ -2489,6 +2438,74 @@ class GridMap:
                     self.cleaned[r, c] = 0
                     count += 1
         return count
+
+    def draw_reference_square(self, screen, area_rect,
+                               center_x_mm, center_y_mm,
+                               side_mm=REFERENCE_SQUARE_SIDE_MM):
+        """
+        Dibuja un cuadrado fijo de referencia centrado en (center_x_mm,
+        center_y_mm). No rota con el robot — representa las paredes reales
+        de un "corral de prueba" de lado `side_mm`.
+
+        Uso de diagnóstico:
+          - La nube LiDAR debería calzar sobre los bordes de este cuadrado
+            si la pose está bien calibrada.
+          - Si la nube queda rotada respecto al cuadrado → ajusta con
+            tecla G (debug) o con Q/E (saved_yaw_offset).
+          - Si la nube queda trasladada → problema de pose XY
+            (la corrección por matching de Fase 3 lo arreglará).
+        """
+        half = side_mm / 2.0
+        x_min = center_x_mm - half
+        x_max = center_x_mm + half
+        y_min = center_y_mm - half
+        y_max = center_y_mm + half
+
+        # 4 esquinas en orden TL, TR, BR, BL
+        corners_world = [
+            (x_min, y_max),
+            (x_max, y_max),
+            (x_max, y_min),
+            (x_min, y_min),
+        ]
+        pts = []
+        for xw, yw in corners_world:
+            sx, sy = self.world_to_screen(area_rect, xw, yw)
+            pts.append((int(sx), int(sy)))
+
+        if len(pts) < 4:
+            return
+
+        # Relleno semitransparente
+        try:
+            fill_surf = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+            pygame.draw.polygon(fill_surf, COLOR_REF_SQUARE_FILL, pts)
+            screen.blit(fill_surf, (0, 0))
+        except Exception:
+            pass
+
+        # Borde grueso
+        pygame.draw.polygon(screen, COLOR_REF_SQUARE, pts, 3)
+
+        # Cruz en el centro (posición inicial del robot)
+        ccx, ccy = self.world_to_screen(area_rect, center_x_mm, center_y_mm)
+        cs_px = 10
+        pygame.draw.line(screen, COLOR_REF_SQUARE,
+                          (int(ccx-cs_px), int(ccy)),
+                          (int(ccx+cs_px), int(ccy)), 2)
+        pygame.draw.line(screen, COLOR_REF_SQUARE,
+                          (int(ccx), int(ccy-cs_px)),
+                          (int(ccx), int(ccy+cs_px)), 2)
+
+        # Etiqueta en esquina superior izquierda
+        try:
+            lf = pygame.font.SysFont("Consolas", 11, bold=True)
+            side_m = side_mm / 1000.0
+            ls = lf.render(f"REF {side_m:.1f}×{side_m:.1f}m",
+                            True, COLOR_REF_SQUARE)
+            screen.blit(ls, (pts[0][0] + 4, pts[0][1] + 4))
+        except Exception:
+            pass
 
     def draw_camera_roi(self, screen, area_rect, corners_mm, tile_label="",
                         border_color=None, fill_rgba=(0, 200, 80, 45)):
@@ -2905,21 +2922,11 @@ def _panel_section_pose(screen, small, state, cx, cw, y):
     screen.blit(small.render(f"Fuente: {src}", True, (100,180,255)), (cx+10, y)); y+=17
     screen.blit(small.render(f"Corr ICP: {corr:.1f}mm", True, COLOR_SUBTEXT),(cx+10,y));y+=17
 
-    # Kalman uncertainty con color-code (amarillo alto, verde bajo)
+    # Incertidumbre de pose con color-code (amarillo alto, verde bajo)
     kc = ((255,220,80) if k_un > 20 else
           (255,180,60) if k_un > 10 else COLOR_OK)
-    screen.blit(small.render(f"Kalman σ: ±{k_un:.1f}mm",
+    screen.blit(small.render(f"Pose σ: ±{k_un:.1f}mm",
                               True, kc), (cx+10,y)); y+=17
-
-    enc_i = state.get("enc_acum_izq", 0.0)
-    enc_d = state.get("enc_acum_der", 0.0)
-    use_enc = state.get("use_encoders", True)
-    if use_enc:
-        screen.blit(small.render(f"Enc I:{enc_i:.0f}° D:{enc_d:.0f}°",
-                                  True, COLOR_SUBTEXT), (cx+10,y)); y+=17
-    else:
-        screen.blit(small.render("Encoders: DESACTIVADOS",
-                                  True, (150, 150, 170)), (cx+10,y)); y+=17
 
     # Breadcrumbs info
     screen.blit(small.render(f"Trail: {bc} migas",
@@ -3102,7 +3109,6 @@ def draw_toolbar(screen, font, small, state, dropdown_open=False):
     coverage   = state.get("clean_coverage", 0.0)
     threshold  = state.get("clean_threshold", CLEAN_THRESHOLD_DEFAULT)
     patron_now = state.get("patron_actual", PATRON_NINGUNO)
-    enc_ok     = state.get("enc_available", False)
     has_walls  = state.get("has_wall_map", False)
     blocked    = state.get("frontal_blocked", False)
     clean_done = state.get("cleaning_complete", False)
@@ -3171,9 +3177,8 @@ def draw_toolbar(screen, font, small, state, dropdown_open=False):
         cx = pill(f"{ps} {patron_now}", pc, (22,24,38), cx)
 
     # Sensor source pill
-    if has_walls and enc_ok:   src, sc = "MATCH+ENC", (80,160,255)
-    elif enc_ok:               src, sc = "ENCODERS",  COLOR_OK
-    else:                      src, sc = "NO SENSORS",(140,140,150)
+    if has_walls: src, sc = "LIDAR MATCH", (80,160,255)
+    else:         src, sc = "LIDAR RAW",   (140,140,150)
     cx = pill(src, sc, (22,24,38), cx)
 
     if blocked: cx = pill("⬛ BLOCKED", COLOR_ALERT, (60,18,18), cx)
@@ -3194,6 +3199,11 @@ def draw_toolbar(screen, font, small, state, dropdown_open=False):
     yaw_off = state.get("yaw_offset", 0.0)
     if abs(yaw_off) > 0.1:
         cx = pill(f"⬆ frame {yaw_off:+.0f}°", (120, 220, 160), (15, 50, 25), cx)
+
+    # Cloud rotation debug pill (herramienta de diagnóstico — tecla R)
+    cloud_rot = state.get("cloud_rotation_debug_deg", 0.0)
+    if abs(cloud_rot) > 0.05:
+        cx = pill(f"☁ cloud {cloud_rot:+.1f}°", (255, 120, 200), (55, 20, 45), cx)
 
     # Controls button — right side
     btn_txt  = "⌨  Controls  ▾" if not dropdown_open else "⌨  Controls  ▴"
@@ -3218,8 +3228,9 @@ def draw_controls_dropdown(screen, small):
         ("F1",       "Scan paredes (quieto 4s)"),
         ("F2",       "Ciclar patrón (MATR→ESP→BOW)"),
         ("F3",       "Replan forzado"),
+        ("F4",       "Toggle cuadrado de referencia 2.2m"),
         ("F5",       "Reset rotación vista"),
-        ("Z",        "Recalibrar frame (orientación actual → 0°)"),
+        ("Z",        "Recalibrar yaw (orientación actual → 0°)"),
         ("Tab",      "Manual / Ruta"),
         # ── Movimiento manual ──────────────
         ("W / S",    "Avanzar / retroceder"),
@@ -3232,9 +3243,12 @@ def draw_controls_dropdown(screen, small):
         ("1 / 2",    "PWM avance ±"),
         ("3 / 4",    "PWM giro ±"),
         ("[ / ]",    "Umbral cobertura ± 5%"),
-        # ── Rotación de vista ──────────────
-        ("Q / E",    "Rotar vista ± 1°"),
-        ("Shift+J/K","Rotar pose ± 10°"),
+        # ── Calibración de yaw ─────────────
+        ("Q / E",    "Ajustar saved_yaw_offset ± 1°"),
+        ("Shift+Q/E","Ajustar saved_yaw_offset ± 10°"),
+        ("G",        "DEBUG: rotar solo nube +1° (diagnóstico)"),
+        ("Shift+G",  "DEBUG: rotar solo nube -1°"),
+        ("Ctrl+G",   "DEBUG: reset rotación de nube"),
         # ── Zonas no-go ────────────────────
         ("N",        "Toggle modo dibujar no-go"),
         ("Drag L",   "Arrastre = rect no-go (modo N)"),
@@ -3348,16 +3362,10 @@ def odometry_step(x_mm, y_mm, yaw_deg, pl_cmd, pr_cmd, dt):
     v_l = pwm_to_vel(pl_cmd)
     v_r = pwm_to_vel(pr_cmd)
     v_linear = (v_l + v_r) * 0.5
-    yaw_rad = math.radians(yaw_deg)
-    new_x = clamp(x_mm + v_linear * math.cos(yaw_rad) * dt, 0.0, float(MAPA_ANCHO_MM))
-    new_y = clamp(y_mm + v_linear * math.sin(yaw_rad) * dt, 0.0, float(MAPA_ALTO_MM))
+    fwd, _ = heading_forward_lateral(yaw_deg)
+    new_x = clamp(x_mm + v_linear * fwd[0] * dt, 0.0, float(MAPA_ANCHO_MM))
+    new_y = clamp(y_mm + v_linear * fwd[1] * dt, 0.0, float(MAPA_ALTO_MM))
     return new_x, new_y
-
-
-def odometry_encoder_step(x_mm, y_mm, yaw_deg,
-                           delta_izq_deg, delta_der_deg):
-    """Legado removido: esta build trabaja solo con LiDAR+gyro."""
-    return x_mm, y_mm
 
 
 def lidar_correction_step(x_mm, y_mm, hits_global,
@@ -3560,7 +3568,7 @@ def check_frontal_obstacle(dynamic_hits, robot_x, robot_y, yaw_deg):
         if d > FRONT_MAX_DIST_MM:
             continue
 
-        ang_to_hit  = math.atan2(dy, dx)
+        ang_to_hit  = math.atan2(dx, dy)
         ang_diff    = abs(math.atan2(
             math.sin(ang_to_hit - yaw_rad),
             math.cos(ang_to_hit - yaw_rad)
@@ -3636,7 +3644,7 @@ def check_rear_obstacle(all_hits_global, robot_x, robot_y, yaw_deg):
         if d > REAR_MAX_DIST_MM:
             continue
 
-        ang_to_hit = math.atan2(dy, dx)
+        ang_to_hit = math.atan2(dx, dy)
         ang_diff   = abs(math.atan2(
             math.sin(ang_to_hit - rear_yaw_rad),
             math.cos(ang_to_hit - rear_yaw_rad)
@@ -3647,75 +3655,6 @@ def check_rear_obstacle(all_hits_global, robot_x, robot_y, yaw_deg):
                 nearest = d
 
     return len(rear_hits), rear_hits, nearest
-
-def yaw_icp_step(x_mm, y_mm, yaw_deg, hits_local_xy, wall_centers_xy):
-    """
-    ICP angular (rotación pura) entre el scan local y el mapa.
-
-    Para cada hit local, se rota por yaw_deg + trasladar a (x_mm, y_mm)
-    y se busca la pared más cercana. El yaw que minimiza el error angular
-    de las correspondencias se estima via el método de Kabsch reducido
-    a 2D (en vez de SVD, atan2 de la componente de producto cruz / punto).
-
-    hits_local_xy : list[(x, y)] en coords del sensor (antes de rotar).
-    
-    Retorna (new_yaw_deg, quality_pct, correction_deg).
-    """
-    if (wall_centers_xy is None
-            or len(hits_local_xy) < YAW_ICP_MIN_PAIRS
-            or not YAW_ICP_ENABLED):
-        return yaw_deg, 0.0, 0.0
-
-    # Convertir hits locales a globales con el yaw actual
-    yaw_rad = math.radians(yaw_deg)
-    cs, sn = math.cos(yaw_rad), math.sin(yaw_rad)
-
-    hits_local = np.asarray(hits_local_xy, dtype=np.float32)       # (M, 2)
-    # Aplicar rotación actual: R·p_local
-    rot_local = np.empty_like(hits_local)
-    rot_local[:, 0] = hits_local[:, 0] * cs - hits_local[:, 1] * sn
-    rot_local[:, 1] = hits_local[:, 0] * sn + hits_local[:, 1] * cs
-    hits_global = rot_local + np.array([x_mm, y_mm], dtype=np.float32)
-
-    # Nearest-neighbor contra wall_centers_xy
-    diff  = hits_global[:, None, :] - wall_centers_xy[None, :, :]
-    dist2 = np.sum(diff ** 2, axis=2)
-    nn_idx  = np.argmin(dist2, axis=1)
-    nn_dist = np.sqrt(dist2[np.arange(len(hits_global)), nn_idx])
-
-    valid_mask = nn_dist < MATCH_MAX_CORR_MM
-    n_valid    = int(np.sum(valid_mask))
-    quality    = 100.0 * n_valid / len(hits_global)
-
-    if n_valid < YAW_ICP_MIN_PAIRS:
-        return yaw_deg, quality, 0.0
-
-    # Vectores desde el centro del robot a cada par (hit, wall)
-    valid_global = hits_global[valid_mask]                        # (K, 2)
-    valid_walls  = wall_centers_xy[nn_idx[valid_mask]]            # (K, 2)
-    p = valid_global - np.array([x_mm, y_mm], dtype=np.float32)   # hit vec
-    q = valid_walls  - np.array([x_mm, y_mm], dtype=np.float32)   # wall vec
-
-    # Ángulo que rotaría p hacia q: sum(cross)/sum(dot)
-    cross = p[:, 0] * q[:, 1] - p[:, 1] * q[:, 0]
-    dot   = p[:, 0] * q[:, 0] + p[:, 1] * q[:, 1]
-    s = float(np.sum(cross))
-    c = float(np.sum(dot))
-    if abs(c) < 1e-6 and abs(s) < 1e-6:
-        return yaw_deg, quality, 0.0
-
-    delta_yaw_deg = math.degrees(math.atan2(s, c))
-
-    # Clamp + damping
-    delta_yaw_deg = max(-YAW_ICP_MAX_CORRECTION_DEG,
-                         min(YAW_ICP_MAX_CORRECTION_DEG, delta_yaw_deg))
-    delta_yaw_deg *= YAW_ICP_ALPHA
-
-    new_yaw = yaw_deg + delta_yaw_deg
-    # Normalizar a (-180, 180]
-    while new_yaw > 180.0:  new_yaw -= 360.0
-    while new_yaw <= -180.0: new_yaw += 360.0
-    return new_yaw, quality, abs(delta_yaw_deg)
 
 
 def scan_matching_step(x_mm, y_mm, hits_global, wall_centers_xy):
@@ -4297,7 +4236,7 @@ def follow_route_step(robot_x, robot_y, yaw_deg,
     dx = target_x - robot_x
     dy = target_y - robot_y
     dist_mm = math.hypot(dx, dy)
-    target_heading = math.degrees(math.atan2(dy, dx))
+    target_heading = heading_from_vector_deg(dx, dy)
     heading_error = _normalize_angle(target_heading - yaw_deg)
 
     align_pwm = pwm_align if pwm_align is not None else PWM_FOLLOWER_ALIGN
@@ -4460,22 +4399,21 @@ def main():
     clock = pygame.time.Clock()
 
     font = pygame.font.SysFont("Arial", 18, bold=True)
-    small = pygame.font.SysFont("Consolas", 14)    # ── Constantes activas fijas para modo LiDAR+gyro ──
-    active_pwm_base       = LIDAR_ONLY_PWM_BASE
-    active_match_every    = LIDAR_ONLY_MATCH_EVERY
-    active_icp_iters      = LIDAR_ONLY_ICP_ITERS
-    active_kalman_q       = LIDAR_ONLY_Q_MM2
-    active_kalman_r_good  = LIDAR_ONLY_R_GOOD
-    active_kalman_r_bad   = LIDAR_ONLY_R_BAD
-    active_slow_dyn_mm    = SLOW_ZONE_DYN_MM * LIDAR_ONLY_SLOW_MULT
-    active_slow_sta_mm    = SLOW_ZONE_STA_MM * LIDAR_ONLY_SLOW_MULT
-    active_follow_align   = LIDAR_ONLY_FOLLOW_ALIGN
-    active_follow_advance = LIDAR_ONLY_FOLLOW_ADVANCE
+    small = pygame.font.SysFont("Consolas", 14)
+
+    # ── Constantes activas fijas para modo LiDAR+gyro ──
+    active_pwm_base       = OP_PWM_BASE
+    active_match_every    = OP_MATCH_EVERY
+    active_icp_iters      = OP_ICP_ITERS
+    active_slow_dyn_mm    = SLOW_ZONE_DYN_MM * OP_SLOW_MULT
+    active_slow_sta_mm    = SLOW_ZONE_STA_MM * OP_SLOW_MULT
+    active_follow_align   = OP_FOLLOW_ALIGN
+    active_follow_advance = OP_FOLLOW_ADVANCE
     print("═" * 62)
     print("  MODO LiDAR+GYRO simplificado activado")
     print(f"  PWM_BASE={active_pwm_base}")
     print(f"  ICP cada {active_match_every} ticks × {active_icp_iters} iters")
-    print(f"  Slowdown zones ×{LIDAR_ONLY_SLOW_MULT}")
+    print(f"  Slowdown zones ×{OP_SLOW_MULT}")
     print("═" * 62)
 
     lidar   = LiDAR_LD20(PUERTO_LIDAR, BAUD_LIDAR)
@@ -4536,9 +4474,33 @@ def main():
     pump_override_on = False
     brush_override_on = False
     relay_emergency_open = False
-    body_pose_yaw_offset_deg = saved_doc.get("body_pose_yaw_offset_deg", 0.0) if saved_doc else 0.0
-    body_pose_adjust_mode = False
-    frame_rotation_deg = 0.0
+
+    # ── Offsets de yaw (Fase 2: consolidados) ─────────────
+    # Antes había 3 offsets acumulativos (frame_rotation_deg,
+    # body_pose_yaw_offset_deg, BODY_FRAME_OFFSET_DEG). Ahora solo existe
+    # uno: saved_yaw_offset, que se inicializa más abajo según saved_doc o
+    # FRAME_ROTATION_DEG. Para retrocompat con sesiones antiguas, cualquier
+    # body_pose_yaw_offset_deg guardado se migra sumándolo a saved_yaw_offset.
+    _legacy_body_offset = saved_doc.get("body_pose_yaw_offset_deg", 0.0) if saved_doc else 0.0
+    body_pose_adjust_mode = False   # kept for legacy toggle key (T) — no-op ahora
+
+    # ── Diagnóstico: rotación visual de la nube LiDAR ──────
+    # Tecla R (+1°), Shift+R (-1°), Ctrl+R (reset). Afecta SOLO a la nube,
+    # no a pose ni navegación. Sirve para medir visualmente cuánto hay que
+    # rotar el offset de yaw para que la nube calce con el mapa real.
+    # El valor leído en pantalla se debería sumar a saved_yaw_offset y
+    # luego dejar cloud_rotation_debug_deg en 0 para operación normal.
+    cloud_rotation_debug_deg = 0.0
+
+    # ── Cuadrado de referencia (diagnóstico visual) ────────
+    # Se centra en el CENTRO DEL CUERPO del robot en pose inicial
+    # (no en el LiDAR). Una vez calculado, queda fijo en el mapa y no
+    # se mueve aunque el robot se desplace.
+    show_reference_square     = REFERENCE_SQUARE_ENABLED
+    # Los valores reales se calculan más abajo, tras determinar pose inicial.
+    reference_square_center_x = None
+    reference_square_center_y = None
+
     pwr_idx = 0
 
     pwm_base = active_pwm_base
@@ -4576,10 +4538,8 @@ def main():
     # ── Turn pause (evitar matching durante giros) ──────
     turn_settle_counter  = 0       # ticks de espera tras detectar giro
     was_turning_prev     = False   # estado anterior para edge detection
-    last_yaw_correction  = 0.0     # último delta de yaw aplicado (para log)
     last_match_quality   = 0.0
     last_match_corr_mm   = 0.0
-    last_yaw_match_q     = 0.0
 
     # ── Fase D: clasificador + bloqueo frontal ───────────
     block_ticks_on      = 0
@@ -4613,10 +4573,31 @@ def main():
     # del mapa según la orientación física que el usuario especifica.
     if saved_doc is not None:
         saved_yaw_offset = saved_doc.get("yaw_deg", LIDAR_YAW_INICIAL_DEG)
+        # Migración Fase 2: si hay body_pose_yaw_offset_deg guardado,
+        # lo absorbemos aquí para que el offset nuevo sea uno solo.
+        if abs(_legacy_body_offset) > 0.05:
+            saved_yaw_offset += _legacy_body_offset
+            print(f"[MIGRACIÓN] Absorbido body_pose_yaw_offset legacy: "
+                  f"{_legacy_body_offset:+.1f}° → saved_yaw_offset={saved_yaw_offset:+.1f}°")
     else:
         saved_yaw_offset = LIDAR_YAW_INICIAL_DEG + FRAME_ROTATION_DEG
         if abs(FRAME_ROTATION_DEG) > 0.05:
             print(f"[FRAME] Rotación inicial del frame: {FRAME_ROTATION_DEG:+.1f}°")
+
+    # ── Centro del cuadrado de referencia ──────────────────
+    # Se calcula UNA SOLA VEZ con la pose inicial del robot. A partir de
+    # aquí es una constante: el cuadrado no se mueve aunque el robot sí.
+    # El centro del cuerpo del robot está desplazado del centro del LiDAR
+    # por body_offset en dirección del heading inicial.
+    _body_offset_mm  = (DIST_LIDAR_FRENTE_MM - DIST_LIDAR_ATRAS_MM) / 2.0
+    _init_yaw_rad    = math.radians(saved_yaw_offset)
+    _init_fwd_x      = math.sin(_init_yaw_rad)
+    _init_fwd_y      = math.cos(_init_yaw_rad)
+    reference_square_center_x = lidar_x_mm + _body_offset_mm * _init_fwd_x
+    reference_square_center_y = lidar_y_mm + _body_offset_mm * _init_fwd_y
+    print(f"[REF SQUARE] Centro fijado en "
+          f"({reference_square_center_x:.0f}, {reference_square_center_y:.0f}) mm "
+          f"— lado {REFERENCE_SQUARE_SIDE_MM/1000:.1f}m")
 
     # ── Estado de cámara frontal / ROI ──────────────────
     cam_dirt_ema    = saved_doc.get("cam_dirt_ema", 0.0) if saved_doc else 0.0
@@ -4636,15 +4617,12 @@ def main():
     cam_rear_surf        = None   # pygame.Surface para preview en panel
     cam_rear_cells_reset = 0
 
-    # ── PID heading + detección de slip ──────────────────
+    # ── PID heading ──────────────────────────────────────
     heading_pid         = HeadingPID()
-    slip_ema            = 0.0    # suavizado de magnitud de slip (0=sin patinaje)
-    slip_detected       = False
     gyro_prev_yaw       = saved_yaw_offset   # FIX: init con yaw restaurado, no 0
 
-    # ── Filtro de Kalman para pose (x, y) ────────────────
-    # El yaw NO entra al filtro — siempre viene del giroscopio.
-    # Kalman solo fusiona encoders (predict) con ICP (update) cuando hay ICP nuevo.
+    # ── Incertidumbre de pose (para halo visual del robot) ─
+    # Ya no viene de un Kalman; se aproxima con la calidad de match.
     pose_uncertainty_mm = 0.0
 
     # ── Breadcrumbs para retorno inteligente ─────────────
@@ -4736,43 +4714,45 @@ def main():
                     _shift_held = bool(_mods & pygame.KMOD_SHIFT)
 
                     if e.key == pygame.K_q:
+                        # Q / Shift+Q: ajuste fino/grueso del offset único de yaw.
+                        # Afecta a TODO (chasis, ROIs, conos, nube) por igual.
                         step = FRAME_ROT_COARSE_DEG if _shift_held else FRAME_ROT_FINE_DEG
-                        frame_rotation_deg = (frame_rotation_deg - step) % 360.0
-                        if frame_rotation_deg > 180:
-                            frame_rotation_deg -= 360
-                        print(f"[FRAME] Rotación global: {frame_rotation_deg:+.1f}°")
+                        saved_yaw_offset = (saved_yaw_offset - step + 540.0) % 360.0 - 180.0
+                        print(f"[YAW] saved_yaw_offset: {saved_yaw_offset:+.1f}°")
 
                     elif e.key == pygame.K_e and not _shift_held:
                         step = FRAME_ROT_COARSE_DEG if _shift_held else FRAME_ROT_FINE_DEG
-                        frame_rotation_deg = (frame_rotation_deg + step) % 360.0
-                        if frame_rotation_deg > 180:
-                            frame_rotation_deg -= 360
-                        print(f"[FRAME] Rotación global: {frame_rotation_deg:+.1f}°")
+                        saved_yaw_offset = (saved_yaw_offset + step + 540.0) % 360.0 - 180.0
+                        print(f"[YAW] saved_yaw_offset: {saved_yaw_offset:+.1f}°")
 
                     elif e.key == pygame.K_t:
-                        body_pose_adjust_mode = not body_pose_adjust_mode
-                        if body_pose_adjust_mode:
-                            print("[BODY CAL] Modo ajuste ACTIVO. Usa J/K para girar el cuerpo representado.")
-                        else:
-                            print(f"[BODY CAL] Guardado offset cuerpo: {body_pose_yaw_offset_deg:+.1f}°")
+                        # T: legacy no-op — antes activaba modo "body adjust".
+                        # Hoy todos los offsets están unificados en Q/E.
+                        print("[INFO] Tecla T ya no tiene función: "
+                              "usa Q/E para ajustar saved_yaw_offset.")
 
-                    elif e.key == pygame.K_j and body_pose_adjust_mode:
-                        step = BODY_POSE_COARSE_DEG if _shift_held else BODY_POSE_FINE_DEG
-                        body_pose_yaw_offset_deg = (body_pose_yaw_offset_deg - step) % 360.0
-                        if body_pose_yaw_offset_deg > 180:
-                            body_pose_yaw_offset_deg -= 360
-                        print(f"[BODY CAL] Offset cuerpo: {body_pose_yaw_offset_deg:+.1f}°")
+                    elif e.key == pygame.K_g:
+                        # G: rotación de DEBUG de la nube (solo afecta la
+                        # visualización de lidar_hits_global). Sirve para medir
+                        # visualmente cuánto hay que corregir el offset de yaw.
+                        # Shift+G → -1°, Ctrl+G → reset a 0°.
+                        _ctrl_held = bool(_mods & pygame.KMOD_CTRL)
+                        if _ctrl_held:
+                            cloud_rotation_debug_deg = 0.0
+                            print("[CLOUD DEBUG] Reset → 0.0°")
+                        else:
+                            step = -1.0 if _shift_held else 1.0
+                            cloud_rotation_debug_deg = (
+                                (cloud_rotation_debug_deg + step + 540.0) % 360.0 - 180.0
+                            )
+                            print(f"[CLOUD DEBUG] Rotación nube: "
+                                  f"{cloud_rotation_debug_deg:+.1f}° "
+                                  f"(sumar este valor a saved_yaw_offset si la "
+                                  f"nube calza bien así)")
 
                     elif e.key == pygame.K_e and _shift_held:
                         relay_emergency_open = not relay_emergency_open
                         print(f"[RELAY] Emergencia: {'ABIERTO / compresor cortado' if relay_emergency_open else 'AUTO / relé cerrado'}")
-
-                    elif e.key == pygame.K_k and body_pose_adjust_mode:
-                        step = BODY_POSE_COARSE_DEG if _shift_held else BODY_POSE_FINE_DEG
-                        body_pose_yaw_offset_deg = (body_pose_yaw_offset_deg + step) % 360.0
-                        if body_pose_yaw_offset_deg > 180:
-                            body_pose_yaw_offset_deg -= 360
-                        print(f"[BODY CAL] Offset cuerpo: {body_pose_yaw_offset_deg:+.1f}°")
 
                     elif e.key == pygame.K_m:
                         # M = Exportar mapa PNG (antes estaba en E)
@@ -4860,6 +4840,11 @@ def main():
                                     modo = MODE_MANUAL
                                     pl, pr = 0.0, 0.0
                                     arduino.send_command(0, 0, 0, False, False, relay_emergency_open)
+
+                    elif e.key == pygame.K_F4:
+                        # F4: toggle cuadrado de referencia (diagnóstico)
+                        show_reference_square = not show_reference_square
+                        print(f"[REF SQUARE] {'ON' if show_reference_square else 'OFF'}")
 
                     # ── Panel section toggles ─────────────────────
                     elif e.key == pygame.K_7:
@@ -4961,8 +4946,6 @@ def main():
                         cam_rear_cells_reset  = 0
                         cam_dirt_ratio        = 0.0
                         cam_rear_dirt_ratio   = 0.0
-                        slip_ema              = 0.0
-                        slip_detected         = False
                         session_log.clear()
                         log_tick_counter      = 0
                         heading_pid.reset()
@@ -5073,13 +5056,16 @@ def main():
                         nogo_draw_start = None
 
             # ── Pipeline de sensores ───────────────────────────────
-            yaw_deg_base   = saved_yaw_offset + arduino.get_yaw()
-            yaw_deg_real   = yaw_deg_base + frame_rotation_deg
-            yaw_deg_motion = yaw_deg_real + BODY_FRAME_OFFSET_DEG + body_pose_yaw_offset_deg
-            yaw_deg_draw   = yaw_deg_motion
-            yaw_deg        = yaw_deg_motion
+            # Un único yaw_deg para TODO (chasis, ROIs, conos, nube).
+            # Si antes había desajustes entre la nube y el resto, era porque
+            # se usaban offsets distintos. Ahora todo comparte este valor.
+            yaw_deg = saved_yaw_offset + arduino.get_yaw()
+            # Aliases legacy para no romper referencias aún no refactorizadas
+            yaw_deg_base   = yaw_deg
+            yaw_deg_real   = yaw_deg
+            yaw_deg_motion = yaw_deg
+            yaw_deg_draw   = yaw_deg
             last_dang = arduino.get_last_dang()
-            enc_delta_izq, enc_delta_der, enc_available = 0.0, 0.0, False
 
             lidar_hits_global = []
             dyn_alert = False
@@ -5091,8 +5077,12 @@ def main():
 
             ang, dist = lidar_mem.get_scan(now=now)
             lidar_hits_local  = transform_scan_to_local(ang, dist)
+            # La nube usa yaw_deg + cloud_rotation_debug_deg para permitir
+            # girarla aisladamente con la tecla G (diagnóstico visual).
+            # En operación normal cloud_rotation_debug_deg = 0.
+            yaw_for_cloud = yaw_deg + cloud_rotation_debug_deg
             lidar_hits_global = transform_scan_to_global(
-                ang, dist, lidar_x_mm, lidar_y_mm, yaw_deg_real
+                ang, dist, lidar_x_mm, lidar_y_mm, yaw_for_cloud
             )
 
             # ── CÁMARA FRONTAL: percepción visual ──────────────────
@@ -5262,9 +5252,9 @@ def main():
                 # tile sucio → ir más lento para limpiar mejor.
                 if DIRT_GRID_ENABLED and modo == MODE_RUTA:
                     look_dist = LOOKAHEAD_CELLS_DIRT * grid_map.cell_mm
-                    yaw_r = math.radians(yaw_deg_motion)
-                    look_x = lidar_x_mm + look_dist * math.cos(yaw_r)
-                    look_y = lidar_y_mm + look_dist * math.sin(yaw_r)
+                    fwd_look, _ = heading_forward_lateral(yaw_deg_motion)
+                    look_x = lidar_x_mm + look_dist * fwd_look[0]
+                    look_y = lidar_y_mm + look_dist * fwd_look[1]
                     dirt_val = grid_map.get_dirt_cell(look_x, look_y)
                     if dirt_val >= DIRT_THRESHOLD_MEDIUM:
                         dirt_mult = SPEED_MULT_DIRTY
@@ -5334,7 +5324,7 @@ def main():
                         # Heading objetivo: el opuesto al vector home→robot
                         # (robot queda con espalda al home → yaw + 180° respecto
                         # al vector robot→home)
-                        target_heading = math.degrees(math.atan2(dy_h, dx_h))
+                        target_heading = heading_from_vector_deg(dx_h, dy_h)
                         reverse_heading = target_heading + 180.0
                         heading_error = _normalize_angle(reverse_heading - yaw_deg_motion)
 
@@ -5610,14 +5600,9 @@ def main():
             robot_moving = (abs(pl_cmd) >= PWM_VEL_THRESHOLD or
                             abs(pr_cmd) >= PWM_VEL_THRESHOLD)
 
-            # Los deltas de encoders ya se leyeron al inicio del tick
-            # (enc_delta_izq, enc_delta_der, enc_available).
-
-            # ── Slip / encoders eliminados en modo simplificado ─────
-            # PRUEBA ACTUAL: la pose operativa del robot se integra solo
-            # con gyro + modelo PWM. El LiDAR sigue alimentando nube,
-            # mapa y obstáculos, pero NO recoloca la pose XY ni el yaw.
-            slip_detected = False
+            # La pose operativa se integra con gyro + modelo PWM.
+            # El LiDAR alimenta nube, mapa y obstáculos; la corrección
+            # de pose por matching se gestiona más abajo (Fase 3).
             pl_phys = last_pl_cmd * SIGNO_MOTOR_IZQ
             pr_phys = last_pr_cmd * SIGNO_MOTOR_DER
             lidar_x_mm, lidar_y_mm = odometry_step(
@@ -5627,8 +5612,6 @@ def main():
             last_match_quality   = 0.0
             last_match_corr_mm   = 0.0
             last_pose_correction = 0.0
-            last_yaw_match_q     = 0.0
-            last_yaw_correction  = 0.0
             pose_uncertainty_mm  = max(0.0, pose_uncertainty_mm * 0.95)
 
             last_pl_cmd = pl_cmd
@@ -5698,8 +5681,6 @@ def main():
                     "mission_home_x": mission_home_x,
                     "mission_home_y": mission_home_y,
                     "cam_dirt_ema": cam_dirt_ratio,
-                    "body_pose_yaw_offset_deg": body_pose_yaw_offset_deg,
-                    "frame_rotation_deg": frame_rotation_deg,
                     "grid_map": grid_map,
                     "nogo_zones": nogo_zones.to_list(),
                 })
@@ -5719,8 +5700,6 @@ def main():
                     "dirt_ratio":   round(cam_dirt_ratio, 3),
                     "rear_dirt":    round(cam_rear_dirt_ratio, 3),
                     "cam_aux_pwm":  cam_aux_pwm,
-                    "slip":         int(slip_detected),
-                    "slip_ema":     round(slip_ema, 2),
                     "speed_scale":  round(speed_scale, 3),
                     "adaptive_paso":round(adaptive_paso_mm, 0),
                 })
@@ -5734,6 +5713,16 @@ def main():
                 screen.fill(COLOR_BG)
 
                 grid_map.draw(screen, map_rect)
+                # Cuadrado de referencia (diagnóstico). Se dibuja ANTES de
+                # los hits para que la nube quede visible por encima y
+                # puedas ver fácilmente si calza sobre los bordes del cuadrado.
+                if show_reference_square and reference_square_center_x is not None:
+                    grid_map.draw_reference_square(
+                        screen, map_rect,
+                        reference_square_center_x,
+                        reference_square_center_y,
+                        side_mm=REFERENCE_SQUARE_SIDE_MM,
+                    )
                 grid_map.draw_classified_hits(screen, map_rect,
                     dynamic_hits_render, static_hits_render)
                 grid_map.draw_frontal_cone(screen, map_rect,
@@ -5843,9 +5832,6 @@ def main():
                     "pose_correction_mm": last_pose_correction,
                     "robot_moving": robot_moving,
                     "match_quality": last_match_quality,
-                    "enc_available": enc_available,
-                    "enc_acum_izq":  enc_delta_izq,
-                    "enc_acum_der":  enc_delta_der,
                     "frontal_blocked": frontal_blocked,
                     "frontal_count": last_frontal_count,
                     "skipped_count": len(skipped_wp_indices),
@@ -5854,8 +5840,7 @@ def main():
                     "clean_threshold":  clean_threshold,
                     "replan_count":     replan_count,
                     "cleaning_complete": cleaning_complete,
-                    "body_pose_yaw_offset_deg":  body_pose_yaw_offset_deg,
-                    "frame_rotation_deg": frame_rotation_deg,
+                    "cloud_rotation_debug_deg": cloud_rotation_debug_deg,
                     "in_stuck_recovery":  in_stuck_recovery,
                     "stuck_attempts":     wp_attempt_counts.get(waypoint_idx, 0),
                     "cleanable_count":  grid_map.get_cleanable_count(),
@@ -5890,10 +5875,7 @@ def main():
                     "cam_front_surface":  cam_front_surf,
                     "cam_rear_surface":   cam_rear_surf,
                     # Pose source label for panel
-                    # FIX: reflejar si el slip está activo — en ese caso los
-                    # encoders se ignoran en la odometría aunque estén disponibles
                     "pose_source_label":  _pose_src,
-                    "use_encoders":       False,
                     # display_fsm (SLOWDOWN visible when slowing)
                     "display_fsm": (
                         FSM_SLOWDOWN_OBS if (fsm_state == FSM_ADVANCE and speed_scale < 0.99)
@@ -5912,12 +5894,8 @@ def main():
                     "is_turning":         (abs(last_pl_cmd - last_pr_cmd)
                                             >= MATCH_TURN_PWM_DIFF_THR),
                     "turn_settle_left":   turn_settle_counter,
-                    "last_yaw_correction_deg": last_yaw_correction,
-                    "last_yaw_match_q":   last_yaw_match_q,
                     "yaw_offset":         saved_yaw_offset,
                     "backup_dist_done":   backup_dist_done,
-                    "slip_detected":      slip_detected,
-                    "slip_ema":           slip_ema,
                     "adaptive_paso_mm":   adaptive_paso_mm,
                     "pose_uncertainty_mm": pose_uncertainty_mm,
                     "breadcrumb_count":   len(breadcrumbs.trail),
