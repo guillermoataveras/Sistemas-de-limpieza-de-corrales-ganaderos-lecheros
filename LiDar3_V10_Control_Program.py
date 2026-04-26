@@ -115,7 +115,7 @@ OFFSET_LIDAR_FISICO = 186.0
 #
 # Tecla F4: toggle visibilidad
 REFERENCE_SQUARE_ENABLED   = True       # mostrar por defecto
-REFERENCE_SQUARE_SIDE_MM   = 2200.0     # lado del cuadrado (2.2 m)
+REFERENCE_SQUARE_SIDE_MM   = 2000.0     # lado del cuadrado (2.2 m)
 COLOR_REF_SQUARE           = (80, 255, 255)    # cian brillante
 COLOR_REF_SQUARE_FILL      = (80, 255, 255, 10)  # relleno semitransparente
 
@@ -281,7 +281,7 @@ COLOR_THRESH_WARN = (255, 180,  60)
 # ==========================================
 # CÁMARA FRONTAL — ROI Y VISIÓN
 # ==========================================
-CAM_INDEX            = 1        # índice de la cámara (0 = primera disponible)
+CAM_INDEX            = 0        # índice de la cámara (0 = primera disponible)
 CAM_WIDTH_PX         = 640
 CAM_HEIGHT_PX        = 480
 CAM_FPS              = 30
@@ -300,7 +300,7 @@ CAM_MEDIUM_RATIO     = 0.40     # 0.40–0.70 → MEDIO  /  <0.40 → SUCIO (muy
 CAM_EMA_ALPHA        = 0.30
 
 # PWM auxiliar adaptativo por nivel de suciedad
-CAM_PWM_CLEAN        = 60
+CAM_PWM_CLEAN        = 80
 CAM_PWM_MEDIUM       = 100
 CAM_PWM_DIRTY        = 180
 
@@ -314,7 +314,7 @@ COLOR_ROI_BORDER      = (  0, 230, 100)   # verde — ROI frontal
 COLOR_REAR_ROI_BORDER = (200, 100, 255)   # morado — ROI trasero
 
 # ── Cámara trasera ────────────────────────────────────
-CAM_REAR_INDEX              = 2
+CAM_REAR_INDEX              = 1
 CAM_REAR_ROI_OFFSET_MM      = 40.0
 CAM_REAR_ROI_LARGO_MM       = 50.0
 CAM_REAR_ROI_ANCHO_MM       = 110.0
